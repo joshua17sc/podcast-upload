@@ -54,21 +54,4 @@ def extract_article_details(md_content):
         if url_match:
             current_article['url'] = url_match.group(2)
         if summary_match:
-            current_article['summary'] = summary_match.group(1)
-    if current_article:
-        articles.append(current_article)
-    return articles
-
-# Read and parse the content of the blog post file
-with open(post_path, 'r') as file:
-    md_content = file.read()
-articles = extract_article_details(md_content)
-
-# Generate summary sentences for the most important articles using OpenAI
-def generate_summary(article):
-    if 'summary' not in article:
-        return f"No summary available for the article titled '{article['title']}'."
-    
-    prompt = f"Write a concise summary for the following article:\n\nTitle: {article['title']}\nSummary: {article['summary']}\n\nSummary:"
-    response = openai.Completion.create(
-        engin
+            current_article['summary'] = summary_match.group
