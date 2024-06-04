@@ -5,18 +5,18 @@ import datetime
 import re
 import boto3
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import time
 
-# Path to the WebDriver executable
-driver_path = '/usr/local/bin/chromedriver'
+# Path to the GeckoDriver executable
+driver_path = '/usr/local/bin/geckodriver'
 
-# Ensure ChromeDriver path is correct
+# Ensure GeckoDriver path is correct
 if not os.path.isfile(driver_path):
     raise ValueError(f"The path is not a valid file: {driver_path}")
 
@@ -129,12 +129,7 @@ try:
     # Initialize WebDriver
     options = Options()
     options.headless = True
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--disable-extensions')
-    options.add_argument('--disable-gpu')
-    options.add_argument('--window-size=1920x1080')
-    driver = webdriver.Chrome(service=Service(driver_path), options=options)
+    driver = webdriver.Firefox(service=Service(driver_path), options=options)
     driver.get(login_url)
 
     # Log in to RSS.com
