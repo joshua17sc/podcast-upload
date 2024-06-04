@@ -129,6 +129,11 @@ try:
     # Initialize WebDriver
     options = Options()
     options.headless = True
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-extensions')
+    options.add_argument('--disable-gpu')
+    options.add_argument('--window-size=1920x1080')
     driver = webdriver.Chrome(service=Service(driver_path), options=options)
     driver.get(login_url)
 
@@ -178,9 +183,4 @@ try:
     )
 
     # Optionally, print the current URL to verify the publication
-    print(driver.current_url)
-
-finally:
-    if driver:
-        # Close the WebDriver session
-        driver.quit()
+    print(driver
