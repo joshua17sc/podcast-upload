@@ -16,6 +16,10 @@ import time
 # Path to the WebDriver executable
 driver_path = '/usr/local/bin/chromedriver'
 
+# Ensure ChromeDriver path is correct
+if not os.path.isfile(driver_path):
+    raise ValueError(f"The path is not a valid file: {driver_path}")
+
 # URLs
 login_url = 'https://dashboard.rss.com/auth/sign-in/'
 new_episode_url = 'https://dashboard.rss.com/podcasts/cybersecurity-news/new-episode/'
@@ -37,6 +41,11 @@ blog_post_url = f"https://joshua17sc.github.io/cybersecurity-news/{today.strftim
 post_directory = os.path.expanduser('~/cybersecurity-news/_posts/')
 post_filename = f"{today.strftime('%Y-%m-%d')}-cybersecurity-news.md"
 post_path = os.path.join(post_directory, post_filename)
+
+# Ensure the output directory exists
+output_directory = '/episodes/'
+if not os.path.exists(output_directory):
+    os.makedirs(output_directory)
 
 # Function to extract article details from markdown
 def extract_article_details(md_content):
@@ -77,10 +86,6 @@ with open(post_path, 'r') as file:
 # Extract article details
 articles = extract_article_details(md_content)
 
-# Debug: Print extracted articles to verify structure
-for article in articles:
-    print(article)
-
 # Generate podcast script
 podcast_script = ""
 
@@ -115,10 +120,11 @@ def create_audio_with_polly(script, output_path):
     with open(output_path, 'wb') as out:
         out.write(response['AudioStream'].read())
 
-audio_file_path = f"/episodes/{episode_title}.mp3"
+audio_file_path = os.path.join(output_directory, f"{episode_title}.mp3")
 create_audio_with_polly(podcast_script, audio_file_path)
 
 # Selenium part to upload the podcast episode
+driver = None
 try:
     # Initialize WebDriver
     options = Options()
@@ -175,5 +181,6 @@ try:
     print(driver.current_url)
 
 finally:
-    # Close the WebDriver session
-    driver.quit()
+    if driver:
+        # Close the WebDriver session
+        driver.quit()
