@@ -48,6 +48,8 @@ def extract_article_details(md_content):
         summary_match = re.match(r'>\s*(.*)', line)
         if title_match:
             if current_article:
+                # Ensure every article has a 'summary' key
+                current_article.setdefault('summary', 'No summary available.')
                 articles.append(current_article)
                 current_article = {}
             current_article['title'] = title_match.group(1)
@@ -56,6 +58,8 @@ def extract_article_details(md_content):
         if summary_match:
             current_article['summary'] = summary_match.group(1)
     if current_article:
+        # Ensure the last article has a 'summary' key
+        current_article.setdefault('summary', 'No summary available.')
         articles.append(current_article)
     return articles
 
@@ -66,9 +70,6 @@ articles = extract_article_details(md_content)
 
 # Generate summary sentences for the most important articles using OpenAI
 def generate_summary(article):
-    if 'summary' not in article:
-        return f"No summary available for the article titled '{article['title']}'."
-    
     prompt = f"Write a concise summary for the following article:\n\nTitle: {article['title']}\nSummary: {article['summary']}\n\nSummary:"
     response = openai.Completion.create(
         engine="davinci",
@@ -87,8 +88,7 @@ script = [script_intro]
 for i, article in enumerate(articles):
     if i < 2:  # For the most important articles
         script.append(summaries[i])
-    summary_text = article.get('summary', 'No summary available.')
-    script.append(f"Up next, we have an article titled '{article['title']}'. You can read more at {article['url']}. Here is a brief summary: {summary_text}")
+    script.append(f"Up next, we have an article titled '{article['title']}'. You can read more at {article['url']}. Here is a brief summary: {article['summary']}")
 
 script.append(script_farewell)
 podcast_script = "\n\n".join(script)
@@ -210,4 +210,22 @@ try:
 
     # Wait for the draft to be published
     WebDriverWait(driver, 10).until(
-        EC.text_to_be_present_in_element((By.XPATH, f'//h5[contains(text(), "{episode
+        EC.text_to_be_present_in_element((By.XPATH, f'//h5[contains(text(), "{episode_title}")]/ancestor::li//span'), 'Published')
+    )
+
+    # Step 11: Publish to YouTube
+    video_button = draft_episode.find_element(By.XPATH, './/button[@aria-label="Icon video"]/..')
+    video_button.click()
+
+    WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located((By.XPATH, '//button/span[contains(text(), "Publish episode")]/..'))
+    )
+    publish_episode_button = driver.find_element(By.XPATH, '//button/span[contains(text(), "Publish episode")]/..')
+    publish_episode_button.click()
+    
+    # Optionally, print the current URL to verify the publication
+    print(driver.current_url)
+
+finally:
+    # Close the WebDriver session
+    driver.quit()
