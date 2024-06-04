@@ -11,6 +11,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from pyvirtualdisplay import Display
 import time
 
 # Path to the GeckoDriver executable
@@ -125,7 +126,12 @@ create_audio_with_polly(podcast_script, audio_file_path)
 
 # Selenium part to upload the podcast episode
 driver = None
+display = None
 try:
+    # Start virtual display
+    display = Display(visible=0, size=(1920, 1080))
+    display.start()
+
     # Initialize WebDriver
     options = Options()
     options.headless = True
@@ -184,3 +190,6 @@ finally:
     if driver:
         # Close the WebDriver session
         driver.quit()
+    if display:
+        # Stop the virtual display
+        display.stop()
