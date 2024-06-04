@@ -24,8 +24,6 @@ drafts_url = 'https://dashboard.rss.com/podcasts/cybersecurity-news/'  # URL whe
 # User credentials from environment variables
 username = os.getenv('RSS_USERNAME')
 password = os.getenv('RSS_PASSWORD')
-
-# AWS credentials from environment variables
 aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
 aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
 aws_region = os.getenv('AWS_REGION', 'us-east-1')
@@ -33,6 +31,7 @@ aws_region = os.getenv('AWS_REGION', 'us-east-1')
 # Episode details
 today = datetime.datetime.today()
 episode_title = f"Cybersecurity News for {today.strftime('%d %b %Y')}"
+blog_post_url = f"https://joshua17sc.github.io/cybersecurity-news/{today.strftime('%Y-%m-%d')}-cybersecurity-news.html"
 
 # Path to the blog post file
 post_directory = os.path.expanduser('~/cybersecurity-news/_posts/')
@@ -45,20 +44,27 @@ def extract_article_details(md_content):
     articles = []
     current_article = {}
     for line in lines:
-        title_match = re.match(r'##\s*(.*)', line)
-        url_match = re.match(r'\[(.*)\]\((.*)\)', line)
-        summary_match = re.match(r'^[^\>]\s*(.*)', line)
+        title_match = re.match(r'##\s*"(.*)"', line)
+        url_match = re.match(r'\[Read more\]\((.*)\)', line)
+        summary_match = re.match(r'^[A-Z].*', line)  # Assuming summary lines start with a capital letter
+        
         if title_match:
             if current_article:
                 articles.append(current_article)
                 current_article = {}
             current_article['title'] = title_match.group(1)
         elif url_match:
-            current_article['url'] = url_match.group(2)
+            current_article['url'] = url_match.group(1)
         elif summary_match and line:
             current_article['summary'] = line
+        elif not line and current_article:
+            # Append the current article if there's a blank line indicating end of summary
+            articles.append(current_article)
+            current_article = {}
+    
     if current_article:
         articles.append(current_article)
+    
     return articles
 
 # Load the markdown content
@@ -68,11 +74,15 @@ with open(post_path, 'r') as file:
 # Extract article details
 articles = extract_article_details(md_content)
 
+# Debug: Print extracted articles to verify structure
+for article in articles:
+    print(article)
+
 # Generate podcast script
 podcast_script = ""
 
 # Introduction
-podcast_script += "Welcome to the Cybersecurity News Podcast for today. In this episode, we bring you the latest updates and insights from the cybersecurity world.\n\n"
+podcast_script += f"Welcome to the Cybersecurity News Podcast for today. In this episode, we bring you the latest updates and insights from the cybersecurity world. For the full text, access today's post at {blog_post_url}.\n\n"
 
 # Highlights of today's news
 podcast_script += "Here's a quick look at the top headlines for today:\n"
@@ -84,8 +94,7 @@ podcast_script += "\nLet's dive into the details of these stories.\n\n"
 # Read titles and summaries
 for article in articles:
     podcast_script += f"Title: {article['title']}\n"
-    podcast_script += f"Summary: {article['summary']}\n"
-    podcast_script += f"Read more: {article['url']}\n\n"
+    podcast_script += f"Summary: {article['summary']}\n\n"
 
 # Farewell
 podcast_script += "Thank you for listening to the Cybersecurity News Podcast. Stay safe and stay informed. Until next time, goodbye!"
