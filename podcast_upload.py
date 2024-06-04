@@ -4,6 +4,7 @@ import os
 import datetime
 import re
 import boto3
+import logging
 from selenium import webdriver
 from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.common.by import By
@@ -13,6 +14,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from pyvirtualdisplay import Display
 import time
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Path to the GeckoDriver executable
 driver_path = '/usr/local/bin/geckodriver'
@@ -81,10 +85,12 @@ def extract_article_details(md_content):
     return articles
 
 # Load the markdown content
+logging.info('Loading blog post content')
 with open(post_path, 'r') as file:
     md_content = file.read()
 
 # Extract article details
+logging.info('Extracting article details')
 articles = extract_article_details(md_content)
 
 # Generate podcast script
@@ -112,6 +118,7 @@ podcast_script += "Thank you for listening to the Cybersecurity News Podcast. St
 
 # Convert script to audio using Amazon Polly
 def create_audio_with_polly(script, output_path):
+    logging.info('Creating audio with Amazon Polly')
     polly = boto3.client('polly', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, region_name=aws_region)
     response = polly.synthesize_speech(
         Text=script,
@@ -120,6 +127,7 @@ def create_audio_with_polly(script, output_path):
     )
     with open(output_path, 'wb') as out:
         out.write(response['AudioStream'].read())
+    logging.info(f'Audio created at {output_path}')
 
 audio_file_path = os.path.join(output_directory, f"{episode_title}.mp3")
 create_audio_with_polly(podcast_script, audio_file_path)
@@ -129,16 +137,20 @@ driver = None
 display = None
 try:
     # Start virtual display
+    logging.info('Starting virtual display')
     display = Display(visible=0, size=(1920, 1080))
     display.start()
 
     # Initialize WebDriver
+    logging.info('Initializing WebDriver')
     options = Options()
     options.headless = True
     driver = webdriver.Firefox(service=Service(driver_path), options=options)
     driver.get(login_url)
+    logging.info('Opened login page')
 
     # Log in to RSS.com
+    logging.info('Logging in to RSS.com')
     username_input = driver.find_element(By.NAME, 'username')
     password_input = driver.find_element(By.NAME, 'password')
     username_input.send_keys(username)
@@ -147,8 +159,10 @@ try:
 
     # Wait for login to complete
     WebDriverWait(driver, 10).until(EC.url_changes(login_url))
+    logging.info('Logged in successfully')
 
     # Navigate to the new episode page
+    logging.info('Navigating to new episode page')
     driver.get(new_episode_url)
 
     # Upload the episode details (title, description, audio file, etc.)
@@ -162,29 +176,34 @@ try:
     episode_audio_input.send_keys(audio_file_path)
 
     # Save the draft
+    logging.info('Saving draft')
     save_draft_button = driver.find_element(By.XPATH, '//button/span[contains(text(), "Save Draft")]/..')
     save_draft_button.click()
 
     # Wait for the draft to be saved
     WebDriverWait(driver, 10).until(EC.url_contains(drafts_url))
+    logging.info('Draft saved')
 
     # Navigate to the drafts page
     driver.get(drafts_url)
 
     # Locate the draft and publish it
+    logging.info('Locating draft')
     draft_episode = WebDriverWait(driver, 10).until(
         EC.presence_of_element_located((By.XPATH, f'//h5[contains(text(), "{episode_title}")]/ancestor::li'))
     )
     publish_button = draft_episode.find_element(By.XPATH, './/button/span[contains(text(), "Publish")]/..')
+    logging.info('Publishing draft')
     publish_button.click()
 
     # Wait for the draft to be published
     WebDriverWait(driver, 10).until(
         EC.text_to_be_present_in_element((By.XPATH, f'//h5[contains(text(), "{episode_title}")]/ancestor::li//span'), 'Published')
     )
+    logging.info('Draft published successfully')
 
     # Optionally, print the current URL to verify the publication
-    print(driver.current_url)
+    logging.info(f'Published draft URL: {driver.current_url}')
 
 finally:
     if driver:
@@ -193,3 +212,4 @@ finally:
     if display:
         # Stop the virtual display
         display.stop()
+    logging.info('Closed WebDriver session and stopped virtual display')
