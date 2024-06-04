@@ -115,7 +115,7 @@ def create_audio_with_polly(script, output_path):
     with open(output_path, 'wb') as out:
         out.write(response['AudioStream'].read())
 
-audio_file_path = f"/path/to/output/{episode_title}.mp3"
+audio_file_path = f"/episodes/{episode_title}.mp3"
 create_audio_with_polly(podcast_script, audio_file_path)
 
 # Selenium part to upload the podcast episode
