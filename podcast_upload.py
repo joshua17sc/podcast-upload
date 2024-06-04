@@ -183,4 +183,9 @@ try:
     )
 
     # Optionally, print the current URL to verify the publication
-    print(driver
+    print(driver.current_url)
+
+finally:
+    if driver:
+        # Close the WebDriver session
+        driver.quit()
