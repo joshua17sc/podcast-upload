@@ -56,7 +56,10 @@ def extract_article_details(md_content):
         elif url_match:
             current_article['url'] = url_match.group(1)
         elif summary_match and line:
-            current_article['summary'] = line
+            if 'summary' in current_article:
+                current_article['summary'] += ' ' + line
+            else:
+                current_article['summary'] = line
         elif not line and current_article:
             # Append the current article if there's a blank line indicating end of summary
             articles.append(current_article)
@@ -87,14 +90,16 @@ podcast_script += f"Welcome to the Cybersecurity News Podcast for today. In this
 # Highlights of today's news
 podcast_script += "Here's a quick look at the top headlines for today:\n"
 for article in articles:
-    podcast_script += f"- {article['title']}\n"
+    if 'title' in article:
+        podcast_script += f"- {article['title']}\n"
 
 podcast_script += "\nLet's dive into the details of these stories.\n\n"
 
 # Read titles and summaries
 for article in articles:
-    podcast_script += f"Title: {article['title']}\n"
-    podcast_script += f"Summary: {article['summary']}\n\n"
+    if 'title' in article and 'summary' in article:
+        podcast_script += f"Title: {article['title']}\n"
+        podcast_script += f"Summary: {article['summary']}\n\n"
 
 # Farewell
 podcast_script += "Thank you for listening to the Cybersecurity News Podcast. Stay safe and stay informed. Until next time, goodbye!"
