@@ -24,6 +24,8 @@ drafts_url = 'https://dashboard.rss.com/podcasts/cybersecurity-news/'  # URL whe
 # User credentials from environment variables
 username = os.getenv('RSS_USERNAME')
 password = os.getenv('RSS_PASSWORD')
+
+# AWS credentials from environment variables
 aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
 aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
 aws_region = os.getenv('AWS_REGION', 'us-east-1')
