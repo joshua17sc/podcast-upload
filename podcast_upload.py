@@ -2,8 +2,6 @@
 
 import os
 import datetime
-import re
-import boto3
 import logging
 from selenium import webdriver
 from selenium.webdriver.firefox.service import Service
@@ -13,7 +11,7 @@ from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from pyvirtualdisplay import Display
-import time
+import boto3
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -57,10 +55,25 @@ post_path = os.path.join(post_directory, post_filename)
 if not os.path.isfile(post_path):
     raise ValueError(f"The blog post file does not exist: {post_path}")
 
-# AWS S3 setup
-s3 = boto3.client('s3', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, region_name=aws_region)
-bucket_name = 'your-bucket-name'
-audio_file_path = f"/episodes/{today.strftime('%Y-%m-%d')}-cybersecurity-news.mp3"
+# Initialize AWS Polly client
+polly = boto3.client('polly', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, region_name=aws_region)
+
+# Generate speech using Polly
+with open(post_path, 'r') as file:
+    blog_post_text = file.read()
+
+response = polly.synthesize_speech(
+    Text=blog_post_text,
+    OutputFormat='mp3',
+    VoiceId='Joanna'
+)
+
+# Path to save the audio file
+audio_file_path = f"/path/to/your/audio/{today.strftime('%Y-%m-%d')}-cybersecurity-news.mp3"
+
+# Save the audio file locally
+with open(audio_file_path, 'wb') as audio_file:
+    audio_file.write(response['AudioStream'].read())
 
 # Ensure the audio file exists
 if not os.path.isfile(audio_file_path):
