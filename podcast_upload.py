@@ -12,6 +12,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from pyvirtualdisplay import Display
 import boto3
+from selenium.common.exceptions import TimeoutException
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -172,7 +173,7 @@ try:
     # Optionally, print the current URL to verify the publication
     logging.info(f'Published draft URL: {driver.current_url}')
 
-except selenium.common.exceptions.TimeoutException as e:
+except TimeoutException as e:
     logging.error(f"TimeoutException: {e}")
 except Exception as e:
     logging.error(f"Exception: {e}")
