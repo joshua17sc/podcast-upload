@@ -44,11 +44,7 @@ def create_podcast_script(articles, today_date):
 def synthesize_speech(script_text, output_path):
     try:
         logging.info("Synthesizing speech using AWS Polly")
-        polly_client = boto3.Session(
-            aws_access_key_id='YOUR_AWS_ACCESS_KEY',
-            aws_secret_access_key='YOUR_AWS_SECRET_KEY',
-            region_name='us-east-1'  # Set AWS region to us-east-1
-        ).client('polly')
+        polly_client = boto3.client('polly')
 
         response = polly_client.synthesize_speech(
             Text=script_text,
