@@ -26,21 +26,34 @@ audio_file_path = os.path.expanduser('~/cybersecurity-news/podcast_audio.mp3')
 # Start a session to persist cookies
 session = requests.Session()
 
+# Add headers to mimic a browser request
+headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'Referer': login_url,
+    'Origin': 'https://dashboard.rss.com'
+}
+
 # Login
 logging.info('Navigating to login page')
-response = session.get(login_url)
+response = session.get(login_url, headers=headers)
 soup = BeautifulSoup(response.content, 'html.parser')
 
-# Find the login form and get its action URL
+# Find the login form and get its action URL and method
 login_form = soup.find('form')
 login_action = login_form.get('action', login_url)
+login_method = login_form.get('method', 'post').lower()
 login_data = {
     'username': username,
     'password': password
 }
 
+# Ensure the method is POST
+if login_method != 'post':
+    logging.error('Login form uses an unsupported method: ' + login_method)
+    exit(1)
+
 logging.info('Submitting login form')
-response = session.post(login_action, data=login_data)
+response = session.post(login_action, data=login_data, headers=headers)
 
 # Enhanced logging to diagnose login issues
 logging.info(f'Status Code: {response.status_code}')
@@ -54,7 +67,7 @@ if response.url == login_url or "login" in response.url.lower():
 
 # Navigate to new episode page
 logging.info('Navigating to new episode page')
-response = session.get(new_episode_url)
+response = session.get(new_episode_url, headers=headers)
 soup = BeautifulSoup(response.content, 'html.parser')
 
 # Find the form for creating a new episode
@@ -77,13 +90,13 @@ data['description'] = "Today's episode covers the latest cybersecurity news."
 files = {'audio': open(audio_file_path, 'rb')}
 
 logging.info('Uploading audio file and saving draft')
-response = session.post(action, files=files, data=data)
+response = session.post(action, files=files, data=data, headers=headers)
 if response.status_code == 200:
     logging.info('Draft saved')
 
 # Publish the draft
 logging.info('Navigating to drafts page')
-response = session.get(drafts_url)
+response = session.get(drafts_url, headers=headers)
 soup = BeautifulSoup(response.content, 'html.parser')
 
 logging.info('Locating draft')
@@ -92,7 +105,7 @@ if draft_episode:
     publish_button = draft_episode.find_next('button', text='Publish')
     if publish_button:
         publish_url = publish_button['formaction']
-        response = session.post(publish_url)
+        response = session.post(publish_url, headers=headers)
         if response.status_code == 200:
             logging.info('Draft published successfully')
 else:
