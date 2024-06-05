@@ -53,57 +53,48 @@ post_directory = os.path.expanduser('~/cybersecurity-news/_posts/')
 post_filename = f"{today.strftime('%Y-%m-%d')}-cybersecurity-news.md"
 post_path = os.path.join(post_directory, post_filename)
 
-# Ensure the output directory exists
-output_directory = '/episodes/'
-if not os.path.exists(output_directory):
-    os.makedirs(output_directory)
+# Ensure the blog post file exists
+if not os.path.isfile(post_path):
+    raise ValueError(f"The blog post file does not exist: {post_path}")
 
-# Function to upload podcast episode to AWS S3
-def upload_to_s3(file_path, bucket_name, object_name=None):
-    if object_name is None:
-        object_name = os.path.basename(file_path)
-    s3_client = boto3.client('s3', aws_access_key_id=aws_access_key_id,
-                             aws_secret_access_key=aws_secret_access_key, region_name=aws_region)
-    try:
-        s3_client.upload_file(file_path, bucket_name, object_name)
-        logging.info(f"File uploaded to S3: {object_name}")
-    except Exception as e:
-        logging.error(f"Failed to upload file to S3: {e}")
-        raise
+# AWS S3 setup
+s3 = boto3.client('s3', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, region_name=aws_region)
+bucket_name = 'your-bucket-name'
+audio_file_path = f"/path/to/your/audio/{today.strftime('%Y-%m-%d')}-cybersecurity-news.mp3"
 
-# Initialize virtual display
-display = Display(visible=0, size=(1920, 1080))
+# Ensure the audio file exists
+if not os.path.isfile(audio_file_path):
+    raise ValueError(f"The audio file does not exist: {audio_file_path}")
+
+# Virtual display setup
+display = Display(visible=0, size=(1024, 768))
 display.start()
 
+driver = None
 try:
-    # Initialize WebDriver
-    logging.info("Initializing WebDriver")
+    logging.info('Initializing WebDriver')
     driver = webdriver.Firefox(service=Service(driver_path), options=options)
+    driver.implicitly_wait(10)  # Implicit wait
 
-    # Navigate to login page
-    logging.info(f"Navigating to login page: {login_url}")
+    logging.info('Navigating to login page')
     driver.get(login_url)
 
-    # Log in to the dashboard
-    logging.info("Logging in to the dashboard")
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, 'username')))
-    username_input = driver.find_element(By.NAME, 'username')
+    # Login process
+    username_input = driver.find_element(By.NAME, 'email')
     password_input = driver.find_element(By.NAME, 'password')
     username_input.send_keys(username)
     password_input.send_keys(password)
     password_input.send_keys(Keys.RETURN)
 
-    # Wait for the login to complete
-    WebDriverWait(driver, 10).until(EC.url_contains('dashboard.rss.com'))
+    logging.info('Waiting for login to complete')
+    WebDriverWait(driver, 10).until(EC.url_contains('/dashboard'))
 
-    # Navigate to the new episode page
-    logging.info(f"Navigating to new episode page: {new_episode_url}")
+    # Navigate to new episode page
+    logging.info('Navigating to new episode page')
     driver.get(new_episode_url)
 
-    # Upload episode details
-    logging.info("Filling out episode details")
-    audio_file_path = os.path.join(output_directory, 'episode.mp3')
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, 'title')))
+    # Fill out new episode form
+    logging.info('Filling out new episode form')
     episode_title_input = driver.find_element(By.NAME, 'title')
     episode_description_input = driver.find_element(By.NAME, 'description')
     episode_audio_input = driver.find_element(By.NAME, 'audio')
@@ -143,11 +134,13 @@ try:
     # Optionally, print the current URL to verify the publication
     logging.info(f'Published draft URL: {driver.current_url}')
 
+except selenium.common.exceptions.TimeoutException as e:
+    logging.error(f"TimeoutException: {e}")
+except Exception as e:
+    logging.error(f"Exception: {e}")
 finally:
     if driver:
-        # Close the WebDriver session
         driver.quit()
     if display:
-        # Stop the virtual display
         display.stop()
     logging.info('Closed WebDriver session and stopped virtual display')
