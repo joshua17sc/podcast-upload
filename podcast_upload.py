@@ -1,117 +1,120 @@
-#!/usr/bin/python3
-
 import os
 import datetime
-import logging
+import markdown2
+import boto3
 import requests
-from bs4 import BeautifulSoup
+import logging
 
-# Configure logging
+# Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# URLs
-login_url = 'https://dashboard.rss.com/auth/sign-in/'
-new_episode_url = 'https://dashboard.rss.com/podcasts/cybersecurity-news/new-episode/'
-drafts_url = 'https://dashboard.rss.com/podcasts/cybersecurity-news/'
+def read_markdown_file(file_path):
+    try:
+        with open(file_path, 'r') as file:
+            logging.info(f"Reading markdown file from {file_path}")
+            return file.read()
+    except Exception as e:
+        logging.error(f"Error reading markdown file: {e}")
+        raise
 
-# User credentials from environment variables
-username = os.getenv('RSS_USERNAME')
-password = os.getenv('RSS_PASSWORD')
+def parse_markdown(content):
+    try:
+        logging.info("Parsing markdown content")
+        html_content = markdown2.markdown(content)
+        return html_content.split('<h2>')[1:]  # Assuming each article starts with <h2> header
+    except Exception as e:
+        logging.error(f"Error parsing markdown content: {e}")
+        raise
 
-# Episode details
-today = datetime.datetime.today()
-episode_title = f"Cybersecurity News for {today.strftime('%d %b %Y')}"
-audio_file_path = os.path.expanduser('~/cybersecurity-news/podcast_audio.mp3')
+def create_podcast_script(articles, today_date):
+    logging.info("Creating podcast script")
+    intro = f"This is your daily cybersecurity news for {today_date}."
+    transitions = ["Our first article for today...", "This next article...", "Our final article for today..."]
+    outro = f"This has been your cybersecurity news for {today_date}. Tune in tomorrow and share with your friends and colleagues."
 
-# Start a session to persist cookies
-session = requests.Session()
+    script = [intro]
+    for i, article in enumerate(articles):
+        script.append(transitions[min(i, len(transitions)-1)])
+        script.append(markdown2.markdown(article))
+        script.append("<break time='2s'/>")  # Adding pause between articles
+    script.append(outro)
 
-# Add headers to mimic a browser request
-headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-    'Referer': login_url,
-    'Origin': 'https://dashboard.rss.com',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.5',
-    'Connection': 'keep-alive'
-}
+    return "\n".join(script)
 
-# Login
-logging.info('Navigating to login page')
-response = session.get(login_url, headers=headers)
-soup = BeautifulSoup(response.content, 'html.parser')
+def synthesize_speech(script_text, output_path):
+    try:
+        logging.info("Synthesizing speech using AWS Polly")
+        polly_client = boto3.Session(
+            aws_access_key_id='YOUR_AWS_ACCESS_KEY',
+            aws_secret_access_key='YOUR_AWS_SECRET_KEY',
+            region_name='YOUR_AWS_REGION'
+        ).client('polly')
 
-# Find the login form and get its action URL and method
-login_form = soup.find('form')
-login_action = login_form.get('action', login_url)
-login_method = login_form.get('method', 'post').lower()
-login_data = {
-    'username': username,
-    'password': password
-}
+        response = polly_client.synthesize_speech(
+            Text=script_text,
+            OutputFormat='mp3',
+            VoiceId='Ruth',  # Using Ruth voice for newscasting
+            Engine='neural'
+        )
 
-# Ensure the method is POST
-if login_method != 'post':
-    logging.error('Login form uses an unsupported method: ' + login_method)
-    exit(1)
+        with open(output_path, 'wb') as file:
+            file.write(response['AudioStream'].read())
+        
+        logging.info(f"Audio file saved to {output_path}")
+    except Exception as e:
+        logging.error(f"Error synthesizing speech: {e}")
+        raise
 
-logging.info('Submitting login form')
-response = session.post(login_action, data=login_data, headers=headers, cookies=response.cookies)
+def get_podbean_access_token(client_id, client_secret):
+    try:
+        logging.info("Getting Podbean access token")
+        response = requests.post(PODBEAN_ACCESS_TOKEN_URL, data={
+            'grant_type': 'client_credentials',
+            'client_id': client_id,
+            'client_secret': client_secret
+        })
+        response.raise_for_status()
+        return response.json()['access_token']
+    except Exception as e:
+        logging.error(f"Error getting Podbean access token: {e}")
+        raise
 
-# Enhanced logging to diagnose login issues
-logging.info(f'Status Code: {response.status_code}')
-logging.info(f'Response URL: {response.url}')
-logging.info(f'Response Content Snippet: {response.text[:500]}')
+def upload_to_podbean(audio_file_path, access_token):
+    try:
+        logging.info("Uploading audio file to Podbean")
+        with open(audio_file_path, 'rb') as file:
+            files = {'file': file}
+            headers = {
+                'Authorization': f'Bearer {access_token}'
+            }
+            response = requests.post(PODBEAN_UPLOAD_URL, headers=headers, files=files)
+            response.raise_for_status()
+            logging.info("Upload successful")
+            return response.json()
+    except Exception as e:
+        logging.error(f"Error uploading to Podbean: {e}")
+        raise
 
-# Check if login was successful
-if response.url == login_url or "login" in response.url.lower():
-    logging.error('Login failed')
-    exit(1)
+if __name__ == "__main__":
+    try:
+        today_date = datetime.date.today().strftime('%Y-%m-%d')
+        markdown_file_path = f'/mnt/data/{today_date}-cybersecurity-news.md'
+        output_audio_path = f'/episodes/daily_cybersecurity_news_{today_date}.mp3'
 
-# Navigate to new episode page
-logging.info('Navigating to new episode page')
-response = session.get(new_episode_url, headers=headers, cookies=response.cookies)
-soup = BeautifulSoup(response.content, 'html.parser')
+        markdown_content = read_markdown_file(markdown_file_path)
+        articles = parse_markdown(markdown_content)
+        script_text = create_podcast_script(articles, today_date)
+        synthesize_speech(script_text, output_audio_path)
 
-# Find the form for creating a new episode
-form = soup.find('form')
-if not form:
-    logging.error('New episode form not found')
-    exit(1)
+        PODBEAN_CLIENT_ID = 'YOUR_PODBEAN_CLIENT_ID'
+        PODBEAN_CLIENT_SECRET = 'YOUR_PODBEAN_CLIENT_SECRET'
+        PODBEAN_ACCESS_TOKEN_URL = 'https://api.podbean.com/v1/oauth/token'
+        PODBEAN_UPLOAD_URL = 'https://api.podbean.com/v1/files/upload'
 
-# Extract form action and other details
-action = form.get('action', new_episode_url)
-data = {input_tag['name']: input_tag.get('value', '') for input_tag in form.find_all('input') if input_tag.get('name')}
-data.update({textarea['name']: textarea.text for textarea in form.find_all('textarea') if textarea.get('name')})
-data.update({select['name']: select.find('option', selected=True)['value'] for select in form.find_all('select') if select.get('name')})
+        access_token = get_podbean_access_token(PODBEAN_CLIENT_ID, PODBEAN_CLIENT_SECRET)
+        upload_response = upload_to_podbean(output_audio_path, access_token)
 
-# Update form data with episode details
-data['title'] = episode_title
-data['description'] = "Today's episode covers the latest cybersecurity news."
+        logging.info(f"Upload response: {upload_response}")
 
-# Prepare the files for upload
-files = {'audio': open(audio_file_path, 'rb')}
-
-logging.info('Uploading audio file and saving draft')
-response = session.post(action, files=files, data=data, headers=headers, cookies=response.cookies)
-if response.status_code == 200:
-    logging.info('Draft saved')
-
-# Publish the draft
-logging.info('Navigating to drafts page')
-response = session.get(drafts_url, headers=headers, cookies=response.cookies)
-soup = BeautifulSoup(response.content, 'html.parser')
-
-logging.info('Locating draft')
-draft_episode = soup.find('h5', text=episode_title)
-if draft_episode:
-    publish_button = draft_episode.find_next('button', text='Publish')
-    if publish_button:
-        publish_url = publish_button['formaction']
-        response = session.post(publish_url, headers=headers, cookies=response.cookies)
-        if response.status_code == 200:
-            logging.info('Draft published successfully')
-else:
-    logging.error('Draft not found')
-
-logging.info('Finished')
+    except Exception as e:
+        logging.error(f"An error occurred: {e}")
