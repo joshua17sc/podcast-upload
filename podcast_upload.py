@@ -33,7 +33,7 @@ soup = BeautifulSoup(response.content, 'html.parser')
 
 # Find the login form and get its action URL
 login_form = soup.find('form')
-login_action = login_form['action']
+login_action = login_form.get('action', login_url)
 login_data = {
     'username': username,
     'password': password
@@ -59,10 +59,10 @@ if not form:
     exit(1)
 
 # Extract form action and other details
-action = form['action']
-data = {input_tag['name']: input_tag.get('value', '') for input_tag in form.find_all('input')}
-data.update({textarea['name']: textarea.text for textarea in form.find_all('textarea')})
-data.update({select['name']: select.find('option', selected=True)['value'] for select in form.find_all('select')})
+action = form.get('action', new_episode_url)
+data = {input_tag['name']: input_tag.get('value', '') for input_tag in form.find_all('input') if input_tag.get('name')}
+data.update({textarea['name']: textarea.text for textarea in form.find_all('textarea') if textarea.get('name')})
+data.update({select['name']: select.find('option', selected=True)['value'] for select in form.find_all('select') if select.get('name')})
 
 # Update form data with episode details
 data['title'] = episode_title
