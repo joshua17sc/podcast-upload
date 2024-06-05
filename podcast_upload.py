@@ -84,7 +84,12 @@ with open(post_path, 'r') as file:
 
 text_chunks = split_text(blog_post_text)
 
-audio_file_path = f"/path/to/your/audio/{today.strftime('%Y-%m-%d')}-cybersecurity-news.mp3"
+# Ensure the 'episodes' directory exists
+episodes_directory = os.path.join(os.path.dirname(__file__), 'episodes')
+if not os.path.exists(episodes_directory):
+    os.makedirs(episodes_directory)
+
+audio_file_path = os.path.join(episodes_directory, f"{today.strftime('%Y-%m-%d')}-cybersecurity-news.mp3")
 
 with open(audio_file_path, 'wb') as audio_file:
     for chunk in text_chunks:
