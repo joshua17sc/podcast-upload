@@ -25,6 +25,12 @@ driver_path = '/usr/local/bin/geckodriver'
 if not os.path.isfile(driver_path):
     raise ValueError(f"The path is not a valid file: {driver_path}")
 
+# Firefox options
+options = Options()
+options.add_argument('--headless')  # Run in headless mode
+options.add_argument('--no-sandbox')
+options.add_argument('--disable-dev-shm-usage')
+
 # URLs
 login_url = 'https://dashboard.rss.com/auth/sign-in/'
 new_episode_url = 'https://dashboard.rss.com/podcasts/cybersecurity-news/new-episode/'
@@ -52,120 +58,52 @@ output_directory = '/episodes/'
 if not os.path.exists(output_directory):
     os.makedirs(output_directory)
 
-# Function to extract article details from markdown
-def extract_article_details(md_content):
-    lines = md_content.split('\n')
-    articles = []
-    current_article = {}
-    for line in lines:
-        title_match = re.match(r'##\s*"(.*)"', line)
-        url_match = re.match(r'\[Read more\]\((.*)\)', line)
-        summary_match = re.match(r'^[A-Z].*', line)  # Assuming summary lines start with a capital letter
-        
-        if title_match:
-            if current_article:
-                articles.append(current_article)
-                current_article = {}
-            current_article['title'] = title_match.group(1)
-        elif url_match:
-            current_article['url'] = url_match.group(1)
-        elif summary_match and line:
-            if 'summary' in current_article:
-                current_article['summary'] += ' ' + line
-            else:
-                current_article['summary'] = line
-        elif not line and current_article:
-            # Append the current article if there's a blank line indicating end of summary
-            articles.append(current_article)
-            current_article = {}
-    
-    if current_article:
-        articles.append(current_article)
-    
-    return articles
+# Function to upload podcast episode to AWS S3
+def upload_to_s3(file_path, bucket_name, object_name=None):
+    if object_name is None:
+        object_name = os.path.basename(file_path)
+    s3_client = boto3.client('s3', aws_access_key_id=aws_access_key_id,
+                             aws_secret_access_key=aws_secret_access_key, region_name=aws_region)
+    try:
+        s3_client.upload_file(file_path, bucket_name, object_name)
+        logging.info(f"File uploaded to S3: {object_name}")
+    except Exception as e:
+        logging.error(f"Failed to upload file to S3: {e}")
+        raise
 
-# Load the markdown content
-logging.info('Loading blog post content')
-with open(post_path, 'r') as file:
-    md_content = file.read()
+# Initialize virtual display
+display = Display(visible=0, size=(1920, 1080))
+display.start()
 
-# Extract article details
-logging.info('Extracting article details')
-articles = extract_article_details(md_content)
-
-# Generate podcast script
-podcast_script = ""
-
-# Introduction
-podcast_script += f"Welcome to the Cybersecurity News Podcast for today. In this episode, we bring you the latest updates and insights from the cybersecurity world. For the full text, access today's post at {blog_post_url}.\n\n"
-
-# Highlights of today's news
-podcast_script += "Here's a quick look at the top headlines for today:\n"
-for article in articles:
-    if 'title' in article:
-        podcast_script += f"- {article['title']}\n"
-
-podcast_script += "\nLet's dive into the details of these stories.\n\n"
-
-# Read titles and summaries
-for article in articles:
-    if 'title' in article and 'summary' in article:
-        podcast_script += f"Title: {article['title']}\n"
-        podcast_script += f"Summary: {article['summary']}\n\n"
-
-# Farewell
-podcast_script += "Thank you for listening to the Cybersecurity News Podcast. Stay safe and stay informed. Until next time, goodbye!"
-
-# Convert script to audio using Amazon Polly
-def create_audio_with_polly(script, output_path):
-    logging.info('Creating audio with Amazon Polly')
-    polly = boto3.client('polly', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, region_name=aws_region)
-    response = polly.synthesize_speech(
-        Text=script,
-        OutputFormat='mp3',
-        VoiceId='Joanna'  # You can choose different voices available in Polly
-    )
-    with open(output_path, 'wb') as out:
-        out.write(response['AudioStream'].read())
-    logging.info(f'Audio created at {output_path}')
-
-audio_file_path = os.path.join(output_directory, f"{episode_title}.mp3")
-create_audio_with_polly(podcast_script, audio_file_path)
-
-# Selenium part to upload the podcast episode
-driver = None
-display = None
 try:
-    # Start virtual display
-    logging.info('Starting virtual display')
-    display = Display(visible=0, size=(1920, 1080))
-    display.start()
-
     # Initialize WebDriver
-    logging.info('Initializing WebDriver')
-    options = Options()
-    options.headless = True
+    logging.info("Initializing WebDriver")
     driver = webdriver.Firefox(service=Service(driver_path), options=options)
-    driver.get(login_url)
-    logging.info('Opened login page')
 
-    # Log in to RSS.com
-    logging.info('Logging in to RSS.com')
+    # Navigate to login page
+    logging.info(f"Navigating to login page: {login_url}")
+    driver.get(login_url)
+
+    # Log in to the dashboard
+    logging.info("Logging in to the dashboard")
+    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, 'username')))
     username_input = driver.find_element(By.NAME, 'username')
     password_input = driver.find_element(By.NAME, 'password')
     username_input.send_keys(username)
     password_input.send_keys(password)
     password_input.send_keys(Keys.RETURN)
 
-    # Wait for login to complete
-    WebDriverWait(driver, 10).until(EC.url_changes(login_url))
-    logging.info('Logged in successfully')
+    # Wait for the login to complete
+    WebDriverWait(driver, 10).until(EC.url_contains('dashboard.rss.com'))
 
     # Navigate to the new episode page
-    logging.info('Navigating to new episode page')
+    logging.info(f"Navigating to new episode page: {new_episode_url}")
     driver.get(new_episode_url)
 
-    # Upload the episode details (title, description, audio file, etc.)
+    # Upload episode details
+    logging.info("Filling out episode details")
+    audio_file_path = os.path.join(output_directory, 'episode.mp3')
+    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, 'title')))
     episode_title_input = driver.find_element(By.NAME, 'title')
     episode_description_input = driver.find_element(By.NAME, 'description')
     episode_audio_input = driver.find_element(By.NAME, 'audio')
