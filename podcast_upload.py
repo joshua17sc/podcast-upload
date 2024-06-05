@@ -24,11 +24,12 @@ driver_path = '/usr/local/bin/geckodriver'
 if not os.path.isfile(driver_path):
     raise ValueError(f"The path is not a valid file: {driver_path}")
 
+# Ensure the necessary environment variables are set
+os.environ['webdriver.firefox.driver'] = driver_path
+
 # Firefox options
 options = Options()
-options.add_argument('--headless')  # Run in headless mode
-options.add_argument('--no-sandbox')
-options.add_argument('--disable-dev-shm-usage')
+options.headless = True  # Run in headless mode
 
 # URLs
 login_url = 'https://dashboard.rss.com/auth/sign-in/'
