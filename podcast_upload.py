@@ -4,9 +4,13 @@ import markdown2
 import boto3
 import requests
 import logging
+from pydub import AudioSegment
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Constants
+MAX_TEXT_LENGTH = 3000  # AWS Polly maximum text length
 
 def read_markdown_file(file_path):
     try:
@@ -41,20 +45,38 @@ def create_podcast_script(articles, today_date):
 
     return "\n".join(script)
 
+def split_text(text, max_length):
+    chunks = []
+    while len(text) > max_length:
+        split_index = text[:max_length].rfind('. ')
+        if split_index == -1:
+            split_index = max_length
+        chunks.append(text[:split_index + 1])
+        text = text[split_index + 1:]
+    chunks.append(text)
+    return chunks
+
 def synthesize_speech(script_text, output_path):
     try:
         logging.info("Synthesizing speech using AWS Polly")
         polly_client = boto3.client('polly')
+        chunks = split_text(script_text, MAX_TEXT_LENGTH)
+        audio_segments = []
 
-        response = polly_client.synthesize_speech(
-            Text=script_text,
-            OutputFormat='mp3',
-            VoiceId='Ruth',  # Using Ruth voice for newscasting
-            Engine='neural'
-        )
+        for i, chunk in enumerate(chunks):
+            response = polly_client.synthesize_speech(
+                Text=chunk,
+                OutputFormat='mp3',
+                VoiceId='Ruth',  # Using Ruth voice for newscasting
+                Engine='neural'
+            )
+            temp_audio_path = f'/tmp/temp_audio_{i}.mp3'
+            with open(temp_audio_path, 'wb') as file:
+                file.write(response['AudioStream'].read())
+            audio_segments.append(AudioSegment.from_mp3(temp_audio_path))
 
-        with open(output_path, 'wb') as file:
-            file.write(response['AudioStream'].read())
+        combined_audio = sum(audio_segments)
+        combined_audio.export(output_path, format='mp3')
         
         logging.info(f"Audio file saved to {output_path}")
     except Exception as e:
