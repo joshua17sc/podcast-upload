@@ -3,37 +3,17 @@
 import os
 import datetime
 import logging
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.firefox.service import Service
-from selenium.webdriver.firefox.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from pyvirtualdisplay import Display
-from selenium.common.exceptions import TimeoutException
+import mechanize
+import requests
+from bs4 import BeautifulSoup
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Path to the GeckoDriver executable
-driver_path = '/usr/local/bin/geckodriver'
-
-# Ensure GeckoDriver path is correct
-if not os.path.isfile(driver_path):
-    raise ValueError(f"The path is not a valid file: {driver_path}")
-
-# Ensure the necessary environment variables are set
-os.environ['webdriver.firefox.driver'] = driver_path
-
-# Firefox options
-options = Options()
-options.headless = True  # Run in headless mode
-
 # URLs
 login_url = 'https://dashboard.rss.com/auth/sign-in/'
 new_episode_url = 'https://dashboard.rss.com/podcasts/cybersecurity-news/new-episode/'
-drafts_url = 'https://dashboard.rss.com/podcasts/cybersecurity-news/'  # URL where the drafts are listed
+drafts_url = 'https://dashboard.rss.com/podcasts/cybersecurity-news/'
 
 # User credentials from environment variables
 username = os.getenv('RSS_USERNAME')
@@ -44,72 +24,66 @@ today = datetime.datetime.today()
 episode_title = f"Cybersecurity News for {today.strftime('%d %b %Y')}"
 audio_file_path = os.path.expanduser('~/cybersecurity-news/podcast_audio.mp3')
 
-# Initialize virtual display
-display = Display(visible=0, size=(1024, 768))
-display.start()
+# Initialize mechanize browser
+br = mechanize.Browser()
+br.set_handle_robots(False)
 
-driver = None  # Initialize driver variable
+# Login
+logging.info('Navigating to login page')
+br.open(login_url)
+br.select_form(nr=0)
+br.form['email'] = username
+br.form['password'] = password
+br.submit()
 
-try:
-    logging.info('Initializing WebDriver')
-    service = Service(driver_path)
-    driver = webdriver.Firefox(service=service, options=options)
+# Navigate to new episode page
+logging.info('Navigating to new episode page')
+br.open(new_episode_url)
 
-    logging.info('Navigating to login page')
-    driver.get(login_url)
+# Fill in episode details
+logging.info('Filling in episode details')
+br.select_form(nr=0)
+br.form['title'] = episode_title
+br.form['description'] = "Today's episode covers the latest cybersecurity news."
 
-    logging.info('Entering username')
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, 'email'))).send_keys(username)
-    logging.info('Entering password')
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, 'password'))).send_keys(password)
-    logging.info('Submitting login form')
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, 'password'))).send_keys(Keys.RETURN)
+# Since mechanize does not support file upload, we need to use requests for this part
+session_cookies = br._ua_handlers['_cookies'].cookiejar
+session = requests.Session()
+session.cookies.update(session_cookies)
 
-    logging.info('Waiting for navigation to new episode page')
-    WebDriverWait(driver, 10).until(EC.url_contains(new_episode_url))
-    driver.get(new_episode_url)
+# Fetch the form page to get form data
+response = session.get(new_episode_url)
+soup = BeautifulSoup(response.content, 'html.parser')
+form = soup.find('form')
+action = form['action']
 
-    logging.info('Filling in episode details')
-    episode_title_input = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, 'title')))
-    episode_description_input = driver.find_element(By.NAME, 'description')
-    episode_audio_input = driver.find_element(By.NAME, 'audio')
+# Prepare form data for the file upload
+files = {'audio': open(audio_file_path, 'rb')}
+data = {input_tag['name']: input_tag.get('value', '') for input_tag in form.find_all('input')}
+data.update({textarea['name']: textarea.text for textarea in form.find_all('textarea')})
+data.update({select['name']: select.find('option', selected=True)['value'] for select in form.find_all('select')})
 
-    episode_title_input.send_keys(episode_title)
-    episode_description_input.send_keys("Today's episode covers the latest cybersecurity news.")
-    driver.execute_script("arguments[0].style.display = 'block';", episode_audio_input)  # Make the file input visible
-    episode_audio_input.send_keys(audio_file_path)
-
-    logging.info('Saving draft')
-    save_draft_button = driver.find_element(By.XPATH, '//button/span[contains(text(), "Save Draft")]/..')
-    save_draft_button.click()
-
-    logging.info('Waiting for draft to be saved')
-    WebDriverWait(driver, 10).until(EC.url_contains(drafts_url))
+# Upload file and save draft
+logging.info('Uploading audio file and saving draft')
+response = session.post(action, files=files, data=data)
+if response.status_code == 200:
     logging.info('Draft saved')
 
-    driver.get(drafts_url)
-    logging.info('Locating draft')
-    draft_episode = WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.XPATH, f'//h5[contains(text(), "{episode_title}")]/ancestor::li'))
-    )
-    publish_button = draft_episode.find_element(By.XPATH, './/button/span[contains(text(), "Publish")]/..')
-    logging.info('Publishing draft')
-    publish_button.click()
+# Publish the draft
+logging.info('Navigating to drafts page')
+response = session.get(drafts_url)
+soup = BeautifulSoup(response.content, 'html.parser')
 
-    logging.info('Waiting for draft to be published')
-    WebDriverWait(driver, 10).until(
-        EC.text_to_be_present_in_element((By.XPATH, f'//h5[contains(text(), "{episode_title}")]/ancestor::li//span'), 'Published')
-    )
-    logging.info('Draft published successfully')
-    logging.info(f'Published draft URL: {driver.current_url}')
+logging.info('Locating draft')
+draft_episode = soup.find('h5', text=episode_title)
+if draft_episode:
+    publish_button = draft_episode.find_next('button', text='Publish')
+    if publish_button:
+        publish_url = publish_button['formaction']
+        response = session.post(publish_url)
+        if response.status_code == 200:
+            logging.info('Draft published successfully')
+else:
+    logging.error('Draft not found')
 
-except TimeoutException as e:
-    logging.error(f"TimeoutException: {e}")
-except Exception as e:
-    logging.error(f"Exception: {e}")
-finally:
-    if driver:
-        driver.quit()
-    if display:
-        display.stop()
-    logging.info('Closed WebDriver session and stopped virtual display')
+logging.info('Finished')
