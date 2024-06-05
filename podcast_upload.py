@@ -35,8 +35,20 @@ br.open(login_url)
 # Inspect the login form to find the correct field names
 soup = BeautifulSoup(br.response().read(), 'html.parser')
 login_form = soup.find('form')
-email_field_name = login_form.find('input', {'type': 'email'})['name']
-password_field_name = login_form.find('input', {'type': 'password'})['name']
+if login_form:
+    logging.info('Login form found')
+    logging.info(login_form.prettify())
+    email_field = login_form.find('input', {'type': 'email'})
+    password_field = login_form.find('input', {'type': 'password'})
+    if email_field and password_field:
+        email_field_name = email_field['name']
+        password_field_name = password_field['name']
+        logging.info(f'Email field name: {email_field_name}')
+        logging.info(f'Password field name: {password_field_name}')
+    else:
+        raise ValueError('Email or password field not found in the login form')
+else:
+    raise ValueError('Login form not found')
 
 br.select_form(nr=0)
 br.form[email_field_name] = username
