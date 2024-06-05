@@ -30,7 +30,10 @@ session = requests.Session()
 headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
     'Referer': login_url,
-    'Origin': 'https://dashboard.rss.com'
+    'Origin': 'https://dashboard.rss.com',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.5',
+    'Connection': 'keep-alive'
 }
 
 # Login
@@ -53,7 +56,7 @@ if login_method != 'post':
     exit(1)
 
 logging.info('Submitting login form')
-response = session.post(login_action, data=login_data, headers=headers)
+response = session.post(login_action, data=login_data, headers=headers, cookies=response.cookies)
 
 # Enhanced logging to diagnose login issues
 logging.info(f'Status Code: {response.status_code}')
@@ -67,7 +70,7 @@ if response.url == login_url or "login" in response.url.lower():
 
 # Navigate to new episode page
 logging.info('Navigating to new episode page')
-response = session.get(new_episode_url, headers=headers)
+response = session.get(new_episode_url, headers=headers, cookies=response.cookies)
 soup = BeautifulSoup(response.content, 'html.parser')
 
 # Find the form for creating a new episode
@@ -90,13 +93,13 @@ data['description'] = "Today's episode covers the latest cybersecurity news."
 files = {'audio': open(audio_file_path, 'rb')}
 
 logging.info('Uploading audio file and saving draft')
-response = session.post(action, files=files, data=data, headers=headers)
+response = session.post(action, files=files, data=data, headers=headers, cookies=response.cookies)
 if response.status_code == 200:
     logging.info('Draft saved')
 
 # Publish the draft
 logging.info('Navigating to drafts page')
-response = session.get(drafts_url, headers=headers)
+response = session.get(drafts_url, headers=headers, cookies=response.cookies)
 soup = BeautifulSoup(response.content, 'html.parser')
 
 logging.info('Locating draft')
@@ -105,7 +108,7 @@ if draft_episode:
     publish_button = draft_episode.find_next('button', text='Publish')
     if publish_button:
         publish_url = publish_button['formaction']
-        response = session.post(publish_url, headers=headers)
+        response = session.post(publish_url, headers=headers, cookies=response.cookies)
         if response.status_code == 200:
             logging.info('Draft published successfully')
 else:
