@@ -42,8 +42,13 @@ login_data = {
 logging.info('Submitting login form')
 response = session.post(login_action, data=login_data)
 
+# Enhanced logging to diagnose login issues
+logging.info(f'Status Code: {response.status_code}')
+logging.info(f'Response URL: {response.url}')
+logging.info(f'Response Content Snippet: {response.text[:500]}')
+
 # Check if login was successful
-if response.url == login_url:
+if response.url == login_url or "login" in response.url.lower():
     logging.error('Login failed')
     exit(1)
 
