@@ -48,6 +48,8 @@ audio_file_path = os.path.expanduser('~/cybersecurity-news/podcast_audio.mp3')
 display = Display(visible=0, size=(1024, 768))
 display.start()
 
+driver = None  # Initialize driver variable
+
 try:
     logging.info('Initializing WebDriver')
     service = Service(driver_path)
