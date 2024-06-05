@@ -31,9 +31,16 @@ br.set_handle_robots(False)
 # Login
 logging.info('Navigating to login page')
 br.open(login_url)
+
+# Inspect the login form to find the correct field names
+soup = BeautifulSoup(br.response().read(), 'html.parser')
+login_form = soup.find('form')
+email_field_name = login_form.find('input', {'type': 'email'})['name']
+password_field_name = login_form.find('input', {'type': 'password'})['name']
+
 br.select_form(nr=0)
-br.form['email'] = username
-br.form['password'] = password
+br.form[email_field_name] = username
+br.form[password_field_name] = password
 br.submit()
 
 # Navigate to new episode page
