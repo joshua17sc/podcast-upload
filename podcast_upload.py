@@ -58,22 +58,42 @@ if not os.path.isfile(post_path):
 # Initialize AWS Polly client
 polly = boto3.client('polly', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, region_name=aws_region)
 
+# Function to split text into chunks
+def split_text(text, max_length=3000):
+    words = text.split()
+    chunks = []
+    chunk = []
+    length = 0
+
+    for word in words:
+        if length + len(word) + 1 > max_length:
+            chunks.append(' '.join(chunk))
+            chunk = []
+            length = 0
+        chunk.append(word)
+        length += len(word) + 1
+
+    if chunk:
+        chunks.append(' '.join(chunk))
+
+    return chunks
+
 # Generate speech using Polly
 with open(post_path, 'r') as file:
     blog_post_text = file.read()
 
-response = polly.synthesize_speech(
-    Text=blog_post_text,
-    OutputFormat='mp3',
-    VoiceId='Joanna'
-)
+text_chunks = split_text(blog_post_text)
 
-# Path to save the audio file
 audio_file_path = f"/path/to/your/audio/{today.strftime('%Y-%m-%d')}-cybersecurity-news.mp3"
 
-# Save the audio file locally
 with open(audio_file_path, 'wb') as audio_file:
-    audio_file.write(response['AudioStream'].read())
+    for chunk in text_chunks:
+        response = polly.synthesize_speech(
+            Text=chunk,
+            OutputFormat='mp3',
+            VoiceId='Joanna'
+        )
+        audio_file.write(response['AudioStream'].read())
 
 # Ensure the audio file exists
 if not os.path.isfile(audio_file_path):
