@@ -4,6 +4,7 @@ import markdown2
 import boto3
 import requests
 import logging
+import json
 from pydub import AudioSegment
 
 # Setup logging
@@ -83,23 +84,13 @@ def synthesize_speech(script_text, output_path):
         logging.error(f"Error synthesizing speech: {e}")
         raise
 
-def get_podbean_access_token(client_id, client_secret):
+def read_podbean_token(file_path):
     try:
-        logging.info("Getting Podbean access token")
-        response = requests.post(
-            PODBEAN_ACCESS_TOKEN_URL,
-            headers={'Content-Type': 'application/x-www-form-urlencoded'},
-            data={
-                'grant_type': 'client_credentials',
-                'client_id': client_id,
-                'client_secret': client_secret
-            }
-        )
-        logging.info(f"Access token request response: {response.text}")
-        response.raise_for_status()
-        return response.json()['access_token']
+        with open(file_path, 'r') as file:
+            logging.info(f"Reading Podbean token from {file_path}")
+            return json.load(file)['access_token']
     except Exception as e:
-        logging.error(f"Error getting Podbean access token: {e}")
+        logging.error(f"Error reading Podbean token: {e}")
         raise
 
 def upload_to_podbean(audio_file_path, access_token):
@@ -123,18 +114,15 @@ if __name__ == "__main__":
         today_date = datetime.date.today().strftime('%Y-%m-%d')
         markdown_file_path = f'~/cybersecurity-news/_posts/{today_date}-cybersecurity-news.md'
         output_audio_path = f'/episodes/daily_cybersecurity_news_{today_date}.mp3'
+        podbean_token_path = './podbean_token.json'
 
         markdown_content = read_markdown_file(os.path.expanduser(markdown_file_path))
         articles = parse_markdown(markdown_content)
         script_text = create_podcast_script(articles, today_date)
         synthesize_speech(script_text, output_audio_path)
 
-        PODBEAN_CLIENT_ID = 'YOUR_PODBEAN_CLIENT_ID'
-        PODBEAN_CLIENT_SECRET = 'YOUR_PODBEAN_CLIENT_SECRET'
-        PODBEAN_ACCESS_TOKEN_URL = 'https://api.podbean.com/v1/oauth/token'
         PODBEAN_UPLOAD_URL = 'https://api.podbean.com/v1/files/upload'
-
-        access_token = get_podbean_access_token(PODBEAN_CLIENT_ID, PODBEAN_CLIENT_SECRET)
+        access_token = read_podbean_token(podbean_token_path)
         upload_response = upload_to_podbean(output_audio_path, access_token)
 
         logging.info(f"Upload response: {upload_response}")
