@@ -78,4 +78,36 @@ try:
     episode_audio_input.send_keys(audio_file_path)
 
     logging.info('Saving draft')
-    save_draft_button = driver.find_element(By.XPATH, '//button/span[contains(text(), "Save Draft")]/..
+    save_draft_button = driver.find_element(By.XPATH, '//button/span[contains(text(), "Save Draft")]/..')
+    save_draft_button.click()
+
+    logging.info('Waiting for draft to be saved')
+    WebDriverWait(driver, 10).until(EC.url_contains(drafts_url))
+    logging.info('Draft saved')
+
+    driver.get(drafts_url)
+    logging.info('Locating draft')
+    draft_episode = WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located((By.XPATH, f'//h5[contains(text(), "{episode_title}")]/ancestor::li'))
+    )
+    publish_button = draft_episode.find_element(By.XPATH, './/button/span[contains(text(), "Publish")]/..')
+    logging.info('Publishing draft')
+    publish_button.click()
+
+    logging.info('Waiting for draft to be published')
+    WebDriverWait(driver, 10).until(
+        EC.text_to_be_present_in_element((By.XPATH, f'//h5[contains(text(), "{episode_title}")]/ancestor::li//span'), 'Published')
+    )
+    logging.info('Draft published successfully')
+    logging.info(f'Published draft URL: {driver.current_url}')
+
+except TimeoutException as e:
+    logging.error(f"TimeoutException: {e}")
+except Exception as e:
+    logging.error(f"Exception: {e}")
+finally:
+    if driver:
+        driver.quit()
+    if display:
+        display.stop()
+    logging.info('Closed WebDriver session and stopped virtual display')
