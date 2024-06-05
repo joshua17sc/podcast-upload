@@ -12,19 +12,21 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # Constants
 MAX_TEXT_LENGTH = 3000  # AWS Polly maximum text length
+PODBEAN_TOKEN_FILE = './podbean_token.json'
+PODBEAN_UPLOAD_URL = 'https://api.podbean.com/v1/files/upload'
 
-def read_markdown_file(file_path):
+def read_file(file_path):
+    logging.info(f"Reading file from {file_path}")
     try:
         with open(file_path, 'r') as file:
-            logging.info(f"Reading markdown file from {file_path}")
             return file.read()
     except Exception as e:
-        logging.error(f"Error reading markdown file: {e}")
+        logging.error(f"Error reading file: {e}")
         raise
 
 def parse_markdown(content):
+    logging.info("Parsing markdown content")
     try:
-        logging.info("Parsing markdown content")
         html_content = markdown2.markdown(content)
         return html_content.split('<h2>')[1:]  # Assuming each article starts with <h2> header
     except Exception as e:
@@ -58,13 +60,14 @@ def split_text(text, max_length):
     return chunks
 
 def synthesize_speech(script_text, output_path):
-    try:
-        logging.info("Synthesizing speech using AWS Polly")
-        polly_client = boto3.client('polly')
-        chunks = split_text(script_text, MAX_TEXT_LENGTH)
-        audio_segments = []
+    logging.info("Synthesizing speech using AWS Polly")
+    polly_client = boto3.client('polly')
+    chunks = split_text(script_text, MAX_TEXT_LENGTH)
+    audio_segments = []
 
+    try:
         for i, chunk in enumerate(chunks):
+            logging.info(f"Synthesizing chunk {i+1}/{len(chunks)}")
             response = polly_client.synthesize_speech(
                 Text=chunk,
                 OutputFormat='mp3',
@@ -78,30 +81,28 @@ def synthesize_speech(script_text, output_path):
 
         combined_audio = sum(audio_segments)
         combined_audio.export(output_path, format='mp3')
-        
         logging.info(f"Audio file saved to {output_path}")
     except Exception as e:
         logging.error(f"Error synthesizing speech: {e}")
         raise
 
 def read_podbean_token(file_path):
+    logging.info(f"Reading Podbean token from {file_path}")
     try:
         with open(file_path, 'r') as file:
-            logging.info(f"Reading Podbean token from {file_path}")
             return json.load(file)['access_token']
     except Exception as e:
         logging.error(f"Error reading Podbean token: {e}")
         raise
 
 def upload_to_podbean(audio_file_path, access_token):
+    logging.info(f"Uploading audio file to Podbean: {audio_file_path}")
     try:
-        logging.info("Uploading audio file to Podbean")
         with open(audio_file_path, 'rb') as file:
             files = {'file': file}
-            headers = {
-                'Authorization': f'Bearer {access_token}'
-            }
+            headers = {'Authorization': f'Bearer {access_token}'}
             response = requests.post(PODBEAN_UPLOAD_URL, headers=headers, files=files)
+            logging.info(f"Podbean response status: {response.status_code}")
             response.raise_for_status()
             logging.info("Upload successful")
             return response.json()
@@ -109,23 +110,24 @@ def upload_to_podbean(audio_file_path, access_token):
         logging.error(f"Error uploading to Podbean: {e}")
         raise
 
-if __name__ == "__main__":
+def main():
     try:
         today_date = datetime.date.today().strftime('%Y-%m-%d')
         markdown_file_path = f'~/cybersecurity-news/_posts/{today_date}-cybersecurity-news.md'
         output_audio_path = f'/episodes/daily_cybersecurity_news_{today_date}.mp3'
-        podbean_token_path = './podbean_token.json'
 
-        markdown_content = read_markdown_file(os.path.expanduser(markdown_file_path))
+        markdown_content = read_file(os.path.expanduser(markdown_file_path))
         articles = parse_markdown(markdown_content)
         script_text = create_podcast_script(articles, today_date)
         synthesize_speech(script_text, output_audio_path)
 
-        PODBEAN_UPLOAD_URL = 'https://api.podbean.com/v1/files/upload'
-        access_token = read_podbean_token(podbean_token_path)
+        access_token = read_podbean_token(PODBEAN_TOKEN_FILE)
         upload_response = upload_to_podbean(output_audio_path, access_token)
 
         logging.info(f"Upload response: {upload_response}")
 
     except Exception as e:
         logging.error(f"An error occurred: {e}")
+
+if __name__ == "__main__":
+    main()
