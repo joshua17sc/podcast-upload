@@ -86,11 +86,16 @@ def synthesize_speech(script_text, output_path):
 def get_podbean_access_token(client_id, client_secret):
     try:
         logging.info("Getting Podbean access token")
-        response = requests.post(PODBEAN_ACCESS_TOKEN_URL, data={
-            'grant_type': 'client_credentials',
-            'client_id': client_id,
-            'client_secret': client_secret
-        })
+        response = requests.post(
+            PODBEAN_ACCESS_TOKEN_URL,
+            headers={'Content-Type': 'application/x-www-form-urlencoded'},
+            data={
+                'grant_type': 'client_credentials',
+                'client_id': client_id,
+                'client_secret': client_secret
+            }
+        )
+        logging.info(f"Access token request response: {response.text}")
         response.raise_for_status()
         return response.json()['access_token']
     except Exception as e:
