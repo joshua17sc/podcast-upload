@@ -60,7 +60,7 @@ if not os.path.isfile(post_path):
 # AWS S3 setup
 s3 = boto3.client('s3', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, region_name=aws_region)
 bucket_name = 'your-bucket-name'
-audio_file_path = f"/path/to/your/audio/{today.strftime('%Y-%m-%d')}-cybersecurity-news.mp3"
+audio_file_path = f"/episodes/{today.strftime('%Y-%m-%d')}-cybersecurity-news.mp3"
 
 # Ensure the audio file exists
 if not os.path.isfile(audio_file_path):
