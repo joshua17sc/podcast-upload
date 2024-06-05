@@ -98,10 +98,10 @@ def upload_to_podbean(audio_file_path, access_token):
 if __name__ == "__main__":
     try:
         today_date = datetime.date.today().strftime('%Y-%m-%d')
-        markdown_file_path = f'/mnt/data/{today_date}-cybersecurity-news.md'
+        markdown_file_path = f'~/cybersecurity-news/_posts/{today_date}-cybersecurity-news.md'
         output_audio_path = f'/episodes/daily_cybersecurity_news_{today_date}.mp3'
 
-        markdown_content = read_markdown_file(markdown_file_path)
+        markdown_content = read_markdown_file(os.path.expanduser(markdown_file_path))
         articles = parse_markdown(markdown_content)
         script_text = create_podcast_script(articles, today_date)
         synthesize_speech(script_text, output_audio_path)
