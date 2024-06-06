@@ -7,9 +7,14 @@ import logging
 import json
 import psutil
 from pydub import AudioSegment
+from bs4 import BeautifulSoup
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger()
+
+def set_logging_level(level):
+    logger.setLevel(level)
 
 # Constants
 MAX_TEXT_LENGTH = 3000  # AWS Polly maximum text length
@@ -21,29 +26,30 @@ BITRATE = "64k"  # Bitrate for the compressed audio file
 
 def log_resource_usage():
     process = psutil.Process(os.getpid())
-    logging.info(f"Memory usage: {process.memory_info().rss / 1024 ** 2:.2f} MB")
-    logging.info(f"CPU usage: {process.cpu_percent(interval=1.0)}%")
+    logger.info(f"Memory usage: {process.memory_info().rss / 1024 ** 2:.2f} MB")
+    logger.info(f"CPU usage: {process.cpu_percent(interval=1.0)}%")
 
 def read_file(file_path):
-    logging.info(f"Reading file from {file_path}")
+    logger.info(f"Reading file from {file_path}")
     try:
         with open(file_path, 'r') as file:
             return file.read()
     except Exception as e:
-        logging.error(f"Error reading file: {e}")
+        logger.error(f"Error reading file: {e}")
         raise
 
 def parse_markdown(content):
-    logging.info("Parsing markdown content")
+    logger.info("Parsing markdown content")
     try:
         html_content = markdown2.markdown(content)
-        return html_content.split('<h2>')[1:]  # Assuming each article starts with <h2> header
+        articles = html_content.split('<h2>')[1:]  # Assuming each article starts with <h2> header
+        return [BeautifulSoup(article, 'html.parser').get_text() for article in articles]
     except Exception as e:
-        logging.error(f"Error parsing markdown content: {e}")
+        logger.error(f"Error parsing markdown content: {e}")
         raise
 
 def create_podcast_script(articles, today_date):
-    logging.info("Creating podcast script")
+    logger.info("Creating podcast script")
     intro = f"This is your daily cybersecurity news for {today_date}."
     transitions = ["Our first article for today...", "This next article...", "Our final article for today..."]
     outro = f"This has been your cybersecurity news for {today_date}. Tune in tomorrow and share with your friends and colleagues."
@@ -51,7 +57,7 @@ def create_podcast_script(articles, today_date):
     script = [intro]
     for i, article in enumerate(articles):
         script.append(transitions[min(i, len(transitions)-1)])
-        script.append(markdown2.markdown(article))
+        script.append(article)
         script.append("<break time='2s'/>")  # Adding pause between articles
     script.append(outro)
 
@@ -69,14 +75,14 @@ def split_text(text, max_length):
     return chunks
 
 def synthesize_speech(script_text, output_path):
-    logging.info("Synthesizing speech using AWS Polly")
+    logger.info("Synthesizing speech using AWS Polly")
     polly_client = boto3.client('polly')
     chunks = split_text(script_text, MAX_TEXT_LENGTH)
     audio_segments = []
 
     try:
         for i, chunk in enumerate(chunks):
-            logging.info(f"Synthesizing chunk {i+1}/{len(chunks)}")
+            logger.info(f"Synthesizing chunk {i+1}/{len(chunks)}")
             response = polly_client.synthesize_speech(
                 Text=chunk,
                 OutputFormat='mp3',
@@ -92,25 +98,25 @@ def synthesize_speech(script_text, output_path):
         combined_audio = sum(audio_segments)
         compressed_audio_path = output_path.replace(".mp3", "_compressed.mp3")
         combined_audio.export(compressed_audio_path, format='mp3', bitrate=BITRATE)
-        logging.info(f"Compressed audio file saved to {compressed_audio_path}")
+        logger.info(f"Compressed audio file saved to {compressed_audio_path}")
         log_resource_usage()  # Log resource usage after processing
         return compressed_audio_path
     except Exception as e:
-        logging.error(f"Error synthesizing speech: {e}")
+        logger.error(f"Error synthesizing speech: {e}")
         raise
 
 def read_podbean_token(file_path):
-    logging.info(f"Reading Podbean token from {file_path}")
+    logger.info(f"Reading Podbean token from {file_path}")
     try:
         with open(file_path, 'r') as file:
             return json.load(file)['access_token']
     except Exception as e:
-        logging.error(f"Error reading Podbean token: {e}")
+        logger.error(f"Error reading Podbean token: {e}")
         raise
 
 def get_upload_authorization(token, filename, filesize, content_type='audio/mpeg'):
     try:
-        logging.info("Getting upload authorization from Podbean")
+        logger.info("Getting upload authorization from Podbean")
         params = {
             'access_token': token,
             'filename': filename,
@@ -118,30 +124,28 @@ def get_upload_authorization(token, filename, filesize, content_type='audio/mpeg
             'content_type': content_type
         }
         response = requests.get(PODBEAN_UPLOAD_AUTHORIZE_URL, params=params)
-        logging.info(f"Upload authorization response status: {response.status_code}")
-        logging.info(f"Upload authorization response content: {response.text}")
+        logger.info(f"Upload authorization response status: {response.status_code}")
         response.raise_for_status()
         return response.json()
     except Exception as e:
-        logging.error(f"Error getting upload authorization: {e}")
+        logger.error(f"Error getting upload authorization: {e}")
         raise
 
 def upload_to_podbean(upload_url, audio_file_path):
-    logging.info(f"Uploading audio file to Podbean: {audio_file_path}")
+    logger.info(f"Uploading audio file to Podbean: {audio_file_path}")
     try:
         with open(audio_file_path, 'rb') as file:
             response = requests.put(upload_url, data=file)
-            logging.info(f"Podbean upload response status: {response.status_code}")
-            logging.info(f"Podbean upload response content: {response.text}")
+            logger.info(f"Podbean upload response status: {response.status_code}")
             response.raise_for_status()
-            logging.info("Upload successful")
+            logger.info("Upload successful")
     except Exception as e:
-        logging.error(f"Error uploading to Podbean: {e}")
+        logger.error(f"Error uploading to Podbean: {e}")
         raise
 
 def publish_episode(token, title, content, media_key):
     try:
-        logging.info("Publishing episode on Podbean")
+        logger.info("Publishing episode on Podbean")
         data = {
             'access_token': token,
             'title': title,
@@ -151,13 +155,12 @@ def publish_episode(token, title, content, media_key):
             'media_key': media_key
         }
         response = requests.post(PODBEAN_PUBLISH_URL, data=data)
-        logging.info(f"Episode publish response status: {response.status_code}")
-        logging.info(f"Episode publish response content: {response.text}")
+        logger.info(f"Episode publish response status: {response.status_code}")
         response.raise_for_status()
-        logging.info("Episode published successfully")
+        logger.info("Episode published successfully")
         return response.json()
     except Exception as e:
-        logging.error(f"Error publishing episode: {e}")
+        logger.error(f"Error publishing episode: {e}")
         raise
 
 def main():
@@ -180,13 +183,15 @@ def main():
         upload_to_podbean(upload_auth_response['presigned_url'], compressed_audio_path)
 
         episode_title = f"Cybersecurity News for {today_date}"
-        episode_content = markdown_content
+        episode_content = " ".join(articles)
         publish_response = publish_episode(access_token, episode_title, episode_content, upload_auth_response['file_key'])
 
-        logging.info(f"Publish response: {publish_response}")
+        logger.info(f"Publish response: {publish_response}")
 
     except Exception as e:
-        logging.error(f"An error occurred: {e}")
+        logger.error(f"An error occurred: {e}")
 
 if __name__ == "__main__":
+    # Set logging level to INFO for regular operations. Change to DEBUG for more detailed logs.
+    set_logging_level(logging.INFO)
     main()
