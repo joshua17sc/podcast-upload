@@ -9,7 +9,6 @@ import psutil
 from pydub import AudioSegment
 from bs4 import BeautifulSoup
 import re
-import html
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -64,15 +63,14 @@ def create_podcast_script(articles, today_date):
     transitions = ["Our first article for today...", "This next article...", "Our final article for today..."]
     outro = f"This has been your cybersecurity news for {today_date}. Tune in tomorrow and share with your friends and colleagues."
 
-    script = [f"<speak>{html.escape(intro)}<break time='2s'/>"]
+    script = [intro]
     for i, article in enumerate(articles):
-        article_text = html.escape(article)
-        script.append(f"{html.escape(transitions[min(i, len(transitions)-1)])}<break time='1s'/>")
-        script.append(f"{article_text}<break time='2s'/>")
-    script.append(f"{html.escape(outro)}</speak>")
+        script.append(transitions[min(i, len(transitions)-1)])
+        script.append(article)
+    script.append(outro)
 
     full_script = "\n".join(script)
-    logger.debug(f"Generated SSML Script: {full_script}")
+    logger.debug(f"Generated Script: {full_script}")
     return full_script
 
 def split_text(text, max_length):
@@ -95,11 +93,11 @@ def synthesize_speech(script_text, output_path):
     try:
         for i, chunk in enumerate(chunks):
             logger.info(f"Synthesizing chunk {i+1}/{len(chunks)}")
-            logger.debug(f"SSML Chunk: {chunk}")
+            logger.debug(f"Text Chunk: {chunk}")
             response = polly_client.synthesize_speech(
                 Text=chunk,
                 OutputFormat='mp3',
-                TextType='ssml',
+                TextType='text',
                 VoiceId='Ruth',  # Using Ruth voice for newscasting
                 Engine='neural'
             )
