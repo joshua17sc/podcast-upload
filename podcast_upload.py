@@ -9,6 +9,7 @@ import psutil
 from pydub import AudioSegment
 from bs4 import BeautifulSoup
 import re
+import html
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -65,12 +66,14 @@ def create_podcast_script(articles, today_date):
 
     script = [f"<speak><prosody rate='medium'>{intro}</prosody><break time='2s'/>"]
     for i, article in enumerate(articles):
-        article_text = article.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;").replace("'", "&apos;")
+        article_text = html.escape(article)
         script.append(f"<prosody rate='medium'>{transitions[min(i, len(transitions)-1)]}</prosody><break time='1s'/>")
         script.append(f"<prosody rate='medium'>{article_text}</prosody><break time='2s'/>")
     script.append(f"<prosody rate='medium'>{outro}</prosody></speak>")
 
-    return "\n".join(script)
+    full_script = "\n".join(script)
+    logger.debug(f"Generated SSML Script: {full_script}")
+    return full_script
 
 def split_text(text, max_length):
     chunks = []
@@ -92,6 +95,7 @@ def synthesize_speech(script_text, output_path):
     try:
         for i, chunk in enumerate(chunks):
             logger.info(f"Synthesizing chunk {i+1}/{len(chunks)}")
+            logger.debug(f"SSML Chunk: {chunk}")
             response = polly_client.synthesize_speech(
                 Text=chunk,
                 OutputFormat='mp3',
@@ -203,6 +207,6 @@ def main():
         logger.error(f"An error occurred: {e}")
 
 if __name__ == "__main__":
-    # Set logging level to INFO for regular operations. Change to DEBUG for more detailed logs.
-    set_logging_level(logging.INFO)
+    # Set logging level to DEBUG for more detailed logs.
+    set_logging_level(logging.DEBUG)
     main()
