@@ -41,9 +41,7 @@ def read_file(file_path):
 
 def clean_markdown(content):
     logger.info("Cleaning markdown content")
-    # Remove the first line containing the date
     content = re.sub(r'^---.*?---\n', '', content, flags=re.DOTALL)
-    # Remove "Read more" links
     content = re.sub(r'\[Read more\]\(.*?\)', '', content)
     return content
 
@@ -51,177 +49,157 @@ def parse_markdown(content):
     logger.info("Parsing markdown content")
     try:
         html_content = markdown2.markdown(content)
-        articles = html_content.split('<h2>')[1:]  # Assuming each article starts with <h2> header
-        article_urls = re.findall(r'\[Read more\]\((.*?)\)', content)  # Extract URLs
-        parsed_articles = [BeautifulSoup(article, 'html.parser').get_text() for article in articles]
-        return parsed_articles, html_content, article_urls
+        articles = html_content.split('<h2>')[1:]
+        article_urls = re.findall(r'\[Read more\]\((.*?)\)', content)
+        return articles, article_urls
     except Exception as e:
-        logger.error(f"Error parsing markdown content: {e}")
+        logger.error(f"Error parsing markdown: {e}")
         raise
 
-def create_podcast_script(articles, today_date):
+def create_podcast_script(articles):
     logger.info("Creating podcast script")
-    intro = f"This is your daily cybersecurity news for {today_date}."
-    transitions = ["Our first article...", "Our next article...", "Our last article..."]
-    outro = f"This has been your cybersecurity news for {today_date}. Tune in tomorrow and share with your friends and colleagues."
-
-    script = [intro]
+    script = "<speak>This is your daily cybersecurity news for {date}.".format(date=datetime.datetime.now().strftime('%Y-%m-%d'))
+    script += "<break time='2s'/>"
+    
     for i, article in enumerate(articles):
         if i == 0:
-            script.append(transitions[0])
+            transition = "Our first article..."
         elif i == len(articles) - 1:
-            script.append(transitions[2])
+            transition = "Our last article..."
         else:
-            script.append(transitions[1])
-        script.append(article)
-    script.append(outro)
+            transition = "Our next article..."
+        
+        soup = BeautifulSoup(article, 'html.parser')
+        title = soup.h2.get_text(strip=True)
+        content = soup.get_text(separator=" ", strip=True).replace(title, "").strip()
+        
+        script += "<prosody rate='medium'>{transition}</prosody><break time='1s'/>".format(transition=transition)
+        script += "<prosody rate='medium'>&quot;{title}&quot; {content}</prosody><break time='2s'/>".format(title=title, content=content)
+    
+    script += "This has been your cybersecurity news for {date}. Tune in tomorrow and share with your friends and colleagues.</speak>".format(date=datetime.datetime.now().strftime('%Y-%m-%d'))
+    logger.debug(f"Generated SSML Script: {script}")
+    return script
 
-    full_script = "\n".join(script)
-    logger.debug(f"Generated Script: {full_script}")
-    return full_script
-
-def split_text(text, max_length):
-    chunks = []
-    while len(text) > max_length:
-        split_index = text[:max_length].rfind('. ')
-        if split_index == -1:
-            split_index = max_length
-        chunks.append(text[:split_index + 1])
-        text = text[split_index + 1:]
-    chunks.append(text)
-    return chunks
-
-def synthesize_speech(script_text, output_path):
+def synthesize_speech(script, output_file):
     logger.info("Synthesizing speech using AWS Polly")
-    polly_client = boto3.client('polly')
-    chunks = split_text(script_text, MAX_TEXT_LENGTH)
-    audio_segments = []
-
+    polly = boto3.client('polly')
     try:
-        for i, chunk in enumerate(chunks):
-            logger.info(f"Synthesizing chunk {i+1}/{len(chunks)}")
-            logger.debug(f"Text Chunk: {chunk}")
-            response = polly_client.synthesize_speech(
-                Text=chunk,
-                OutputFormat='mp3',
-                TextType='text',
-                VoiceId='Ruth',  # Using Ruth voice for newscasting
-                Engine='neural'
-            )
-            temp_audio_path = f'/tmp/temp_audio_{i}.mp3'
-            with open(temp_audio_path, 'wb') as file:
-                file.write(response['AudioStream'].read())
-            audio_segments.append(AudioSegment.from_mp3(temp_audio_path))
-            os.remove(temp_audio_path)  # Delete temporary file to free up memory
-
-        combined_audio = sum(audio_segments)
-        compressed_audio_path = output_path.replace(".mp3", "_compressed.mp3")
-        combined_audio.export(compressed_audio_path, format='mp3', bitrate=BITRATE)
-        logger.info(f"Compressed audio file saved to {compressed_audio_path}")
-        log_resource_usage()  # Log resource usage after processing
-        return compressed_audio_path
+        response = polly.synthesize_speech(
+            Text=script,
+            OutputFormat='mp3',
+            VoiceId='Ruth',
+            Engine='neural',
+            TextType='ssml'
+        )
+        with open(output_file, 'wb') as file:
+            file.write(response['AudioStream'].read())
     except Exception as e:
         logger.error(f"Error synthesizing speech: {e}")
         raise
 
-def read_podbean_token(file_path):
-    logger.info(f"Reading Podbean token from {file_path}")
+def compress_audio(input_file, output_file):
+    logger.info("Compressing audio file")
     try:
-        with open(file_path, 'r') as file:
-            return json.load(file)['access_token']
+        audio = AudioSegment.from_mp3(input_file)
+        audio.export(output_file, format="mp3", bitrate=BITRATE)
+        logger.info(f"Compressed audio file saved to {output_file}")
+    except Exception as e:
+        logger.error(f"Error compressing audio: {e}")
+        raise
+
+def read_podbean_token():
+    logger.info(f"Reading Podbean token from {PODBEAN_TOKEN_FILE}")
+    try:
+        with open(PODBEAN_TOKEN_FILE, 'r') as file:
+            return json.load(file)
     except Exception as e:
         logger.error(f"Error reading Podbean token: {e}")
         raise
 
-def get_upload_authorization(token, filename, filesize, content_type='audio/mpeg'):
+def get_podbean_upload_authorization(token):
+    logger.info("Getting upload authorization from Podbean")
     try:
-        logger.info("Getting upload authorization from Podbean")
-        params = {
-            'access_token': token,
-            'filename': filename,
-            'filesize': filesize,
-            'content_type': content_type
-        }
-        response = requests.get(PODBEAN_UPLOAD_AUTHORIZE_URL, params=params)
-        logger.info(f"Upload authorization response status: {response.status_code}")
+        response = requests.post(PODBEAN_UPLOAD_AUTHORIZE_URL, data={
+            'access_token': token['access_token'],
+            'filename': 'daily_cybersecurity_news.mp3',
+            'filesize': os.path.getsize('episodes/daily_cybersecurity_news.mp3'),
+            'content_type': 'audio/mpeg'
+        })
         response.raise_for_status()
+        logger.info(f"Upload authorization response status: {response.status_code}")
         return response.json()
     except Exception as e:
         logger.error(f"Error getting upload authorization: {e}")
         raise
 
-def upload_to_podbean(upload_url, audio_file_path):
-    logger.info(f"Uploading audio file to Podbean: {audio_file_path}")
+def upload_to_podbean(upload_url, file_path):
+    logger.info(f"Uploading audio file to Podbean: {file_path}")
     try:
-        with open(audio_file_path, 'rb') as file:
-            response = requests.put(upload_url, data=file)
-            logger.info(f"Podbean upload response status: {response.status_code}")
+        with open(file_path, 'rb') as file:
+            response = requests.post(upload_url, files={'file': file})
             response.raise_for_status()
+            logger.info(f"Podbean upload response status: {response.status_code}")
             logger.info("Upload successful")
+            return response.json()
     except Exception as e:
-        logger.error(f"Error uploading to Podbean: {e}")
+        logger.error(f"Error uploading file to Podbean: {e}")
         raise
 
-def publish_episode(token, title, content, media_key):
+def publish_episode(token, file_key, description):
+    logger.info("Publishing episode on Podbean")
     try:
-        logger.info("Publishing episode on Podbean")
-        data = {
-            'access_token': token,
-            'title': title,
-            'content': content,
-            'status': 'publish',
-            'type': 'public',
-            'media_key': media_key
-        }
-        logger.debug(f"Episode content: {content}")
-        response = requests.post(PODBEAN_PUBLISH_URL, data=data)
-        logger.info(f"Episode publish response status: {response.status_code}")
+        response = requests.post(PODBEAN_PUBLISH_URL, data={
+            'access_token': token['access_token'],
+            'title': f"Cybersecurity News for {datetime.datetime.now().strftime('%Y-%m-%d')}",
+            'content': description,
+            'media_key': file_key,
+            'status': 'publish'
+        })
         response.raise_for_status()
-        logger.info("Episode published successfully")
+        logger.info(f"Episode publish response status: {response.status_code}")
+        logger.debug(f"Episode publish response content: {response.json()}")
         return response.json()
     except Exception as e:
         logger.error(f"Error publishing episode: {e}")
         raise
 
-def generate_html_description(articles, article_urls):
-    html_description = ""
-    for article, url in zip(articles, article_urls):
-        title_search = re.search(r'\"(.*?)\"', article)
-        if title_search:
-            title = title_search.group(1)
-            html_description += f"<h2>{title}</h2><p>{article}</p><p><a href='{url}'>Read more</a></p>"
-    logger.debug(f"Generated HTML Description: {html_description}")
-    return html_description
+def generate_html_description(articles, urls):
+    logger.info("Generating HTML description")
+    description = ""
+    for i, article in enumerate(articles):
+        soup = BeautifulSoup(article, 'html.parser')
+        title = soup.h2.get_text(strip=True)
+        content = soup.get_text(separator=" ", strip=True).replace(title, "").strip()
+        description += f"<h2>{title}</h2><p>{content}</p>"
+        if i < len(urls):
+            description += f'<p><a href="{urls[i]}">Read more</a></p>'
+    logger.debug(f"Generated HTML description: {description}")
+    return description
 
 def main():
-    try:
-        today_date = datetime.date.today().strftime('%Y-%m-%d')
-        markdown_file_path = f'~/cybersecurity-news/_posts/{today_date}-cybersecurity-news.md'
-        output_audio_path = f'/episodes/daily_cybersecurity_news_{today_date}.mp3'
-
-        markdown_content = read_file(os.path.expanduser(markdown_file_path))
-        cleaned_content = clean_markdown(markdown_content)
-        articles, html_content, article_urls = parse_markdown(cleaned_content)
-        script_text = create_podcast_script(articles, today_date)
-        compressed_audio_path = synthesize_speech(script_text, output_audio_path)
-
-        access_token = read_podbean_token(PODBEAN_TOKEN_FILE)
-        file_size = os.path.getsize(compressed_audio_path)
-        filename = os.path.basename(compressed_audio_path)
-        
-        upload_auth_response = get_upload_authorization(access_token, filename, file_size)
-
-        upload_to_podbean(upload_auth_response['presigned_url'], compressed_audio_path)
-
-        episode_title = f"Cybersecurity News for {today_date}"
-        episode_content = generate_html_description(articles, article_urls)
-        logger.info(f"Episode content to be published: {episode_content}")
-        publish_response = publish_episode(access_token, episode_title, episode_content, upload_auth_response['file_key'])
-        
-        logger.info(f"Episode published successfully: {publish_response}")
-
-    except Exception as e:
-        logger.error(f"An error occurred: {e}")
+    log_resource_usage()
+    
+    file_path = '/root/cybersecurity-news/_posts/2024-06-06-cybersecurity-news.md'
+    output_file = 'episodes/daily_cybersecurity_news.mp3'
+    compressed_output_file = 'episodes/daily_cybersecurity_news_compressed.mp3'
+    
+    content = read_file(file_path)
+    cleaned_content = clean_markdown(content)
+    articles, urls = parse_markdown(cleaned_content)
+    
+    podcast_script = create_podcast_script(articles)
+    synthesize_speech(podcast_script, output_file)
+    compress_audio(output_file, compressed_output_file)
+    
+    token = read_podbean_token()
+    upload_auth = get_podbean_upload_authorization(token)
+    upload_response = upload_to_podbean(upload_auth['presigned_url'], compressed_output_file)
+    
+    description = generate_html_description(articles, urls)
+    logger.info(f"Episode content to be published: {description}")
+    publish_response = publish_episode(token, upload_response['file_key'], description)
+    
+    logger.info(f"Episode published successfully: {publish_response}")
 
 if __name__ == '__main__':
     main()
