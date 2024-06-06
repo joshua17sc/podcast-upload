@@ -179,11 +179,9 @@ def create_html_description(articles):
     description = ""
     for article in articles:
         header = article.find('h2')
-        if header:
-            description += f"<h2>{header.text}</h2>"
         link = article.find('a')
-        if link:
-            description += f'<p><a href="{link["href"]}">{link.text}</a></p>'
+        if header and link:
+            description += f'<h2><a href="{link["href"]}">{header.text}</a></h2>'
         summary = article.get_text()
         if link:
             summary = summary.replace(link.text, '')
