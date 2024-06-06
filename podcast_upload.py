@@ -61,21 +61,30 @@ def parse_markdown(content):
 def create_podcast_script(articles, today_date):
     logger.info("Creating podcast script")
     intro = f"This is your daily cybersecurity news for {today_date}."
-    transitions = ["Our first article for today...", "This next article...", "Our final article for today..."]
     outro = f"This has been your cybersecurity news for {today_date}. Tune in tomorrow and share with your friends and colleagues."
 
     script = [intro]
     for i, article in enumerate(articles):
-        script.append(transitions[min(i, len(transitions) - 1)])
+        if i == 0:
+            transition = "Our first article for today..."
+        elif i == len(articles) - 1:
+            transition = "Our final article for today..."
+        else:
+            transition = "This next article..."
+
+        script.append(transition)
+        
         article_text = article.get_text()
         article_lines = article_text.split('\n')
         filtered_lines = [line for line in article_lines if "Read more" not in line]
         script.append("\n".join(filtered_lines))
+    
     script.append(outro)
 
     full_script = "\n".join(script)
     logger.debug(f"Generated Script: {full_script}")
     return full_script
+
 
 def split_text(text, max_length):
     chunks = []
