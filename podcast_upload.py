@@ -9,6 +9,7 @@ import psutil
 from pydub import AudioSegment
 from bs4 import BeautifulSoup
 import re
+import html
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -57,16 +58,24 @@ def parse_markdown(content):
         logger.error(f"Error parsing markdown content: {e}")
         raise
 
+def escape_ssml(text):
+    return html.escape(text)
+
 def create_podcast_script(articles, today_date):
     logger.info("Creating podcast script")
-    intro = f"This is your daily cybersecurity news for {today_date}."
-    transitions = ["Our first article for today...", "This next article...", "Our final article for today..."]
-    outro = f"This has been your cybersecurity news for {today_date}. Tune in tomorrow and share with your friends and colleagues."
+    intro = escape_ssml(f"This is your daily cybersecurity news for {today_date}.")
+    transitions = [
+        escape_ssml("Our first article for today..."), 
+        escape_ssml("This next article..."), 
+        escape_ssml("Our final article for today...")
+    ]
+    outro = escape_ssml(f"This has been your cybersecurity news for {today_date}. Tune in tomorrow and share with your friends and colleagues.")
 
     script = [f"<speak><prosody rate='medium'>{intro}</prosody><break time='2s'/>"]
     for i, article in enumerate(articles):
+        article_text = escape_ssml(article)
         script.append(f"<prosody rate='medium'>{transitions[min(i, len(transitions)-1)]}</prosody><break time='1s'/>")
-        script.append(f"<prosody rate='medium'>{article}</prosody><break time='2s'/>")
+        script.append(f"<prosody rate='medium'>{article_text}</prosody><break time='2s'/>")
     script.append(f"<prosody rate='medium'>{outro}</prosody></speak>")
 
     return "\n".join(script)
@@ -105,7 +114,7 @@ def synthesize_speech(script_text, output_path):
             os.remove(temp_audio_path)  # Delete temporary file to free up memory
 
         combined_audio = sum(audio_segments)
-        compressed_audio_path = output_audio_path.replace(".mp3", "_compressed.mp3")
+        compressed_audio_path = output_path.replace(".mp3", "_compressed.mp3")
         combined_audio.export(compressed_audio_path, format='mp3', bitrate=BITRATE)
         logger.info(f"Compressed audio file saved to {compressed_audio_path}")
         log_resource_usage()  # Log resource usage after processing
