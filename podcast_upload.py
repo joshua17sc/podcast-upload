@@ -189,7 +189,7 @@ def create_html_description(articles):
 def main():
     try:
         today_date = datetime.date.today().strftime('%Y-%m-%d')
-        formatted_date = datetime.date.today().strftime('%d %B %Y')
+        day_month_format = datetime.date.today().strftime('%-d %B %Y')
         markdown_file_path = f'~/cybersecurity-news/_posts/{today_date}-cybersecurity-news.md'
         output_audio_path = f'/episodes/daily_cybersecurity_news_{today_date}.mp3'
 
@@ -207,7 +207,7 @@ def main():
 
         upload_to_podbean(upload_auth_response['presigned_url'], compressed_audio_path)
 
-        episode_title = f"{formatted_date} Daily Cybersecurity News"
+        episode_title = f"{day_month_format} Daily Cybersecurity News"
         episode_content = create_html_description(parsed_articles)
         publish_response = publish_episode(access_token, episode_title, episode_content, upload_auth_response['file_key'])
 
