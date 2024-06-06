@@ -84,6 +84,7 @@ def synthesize_speech(script_text, output_path):
         compressed_audio_path = output_path.replace(".mp3", "_compressed.mp3")
         combined_audio.export(compressed_audio_path, format='mp3', bitrate=BITRATE)
         logging.info(f"Compressed audio file saved to {compressed_audio_path}")
+        return compressed_audio_path
     except Exception as e:
         logging.error(f"Error synthesizing speech: {e}")
         raise
@@ -100,6 +101,8 @@ def read_podbean_token(file_path):
 def upload_to_podbean(audio_file_path, access_token):
     logging.info(f"Uploading audio file to Podbean: {audio_file_path}")
     try:
+        file_size = os.path.getsize(audio_file_path)
+        logging.info(f"File size: {file_size} bytes")
         with open(audio_file_path, 'rb') as file:
             files = {'file': file}
             headers = {'Authorization': f'Bearer {access_token}'}
@@ -121,10 +124,9 @@ def main():
         markdown_content = read_file(os.path.expanduser(markdown_file_path))
         articles = parse_markdown(markdown_content)
         script_text = create_podcast_script(articles, today_date)
-        synthesize_speech(script_text, output_audio_path)
+        compressed_audio_path = synthesize_speech(script_text, output_audio_path)
 
         access_token = read_podbean_token(PODBEAN_TOKEN_FILE)
-        compressed_audio_path = output_audio_path.replace(".mp3", "_compressed.mp3")
         upload_response = upload_to_podbean(compressed_audio_path, access_token)
 
         logging.info(f"Upload response: {upload_response}")
