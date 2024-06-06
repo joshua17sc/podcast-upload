@@ -8,6 +8,7 @@ import json
 import psutil
 from pydub import AudioSegment
 from bs4 import BeautifulSoup
+import re
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -37,6 +38,14 @@ def read_file(file_path):
     except Exception as e:
         logger.error(f"Error reading file: {e}")
         raise
+
+def clean_markdown(content):
+    logger.info("Cleaning markdown content")
+    # Remove the first line containing the date
+    content = re.sub(r'^---.*?---\n', '', content, flags=re.DOTALL)
+    # Remove "Read more" links
+    content = re.sub(r'\[Read more\]\(.*?\)', '', content)
+    return content
 
 def parse_markdown(content):
     logger.info("Parsing markdown content")
@@ -170,7 +179,8 @@ def main():
         output_audio_path = f'/episodes/daily_cybersecurity_news_{today_date}.mp3'
 
         markdown_content = read_file(os.path.expanduser(markdown_file_path))
-        articles = parse_markdown(markdown_content)
+        cleaned_content = clean_markdown(markdown_content)
+        articles = parse_markdown(cleaned_content)
         script_text = create_podcast_script(articles, today_date)
         compressed_audio_path = synthesize_speech(script_text, output_audio_path)
 
