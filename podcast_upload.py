@@ -14,6 +14,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 MAX_TEXT_LENGTH = 3000  # AWS Polly maximum text length
 PODBEAN_TOKEN_FILE = './podbean_token.json'
 PODBEAN_UPLOAD_URL = 'https://api.podbean.com/v1/files/upload'
+BITRATE = "64k"  # Bitrate for the compressed audio file
 
 def read_file(file_path):
     logging.info(f"Reading file from {file_path}")
@@ -80,8 +81,9 @@ def synthesize_speech(script_text, output_path):
             audio_segments.append(AudioSegment.from_mp3(temp_audio_path))
 
         combined_audio = sum(audio_segments)
-        combined_audio.export(output_path, format='mp3')
-        logging.info(f"Audio file saved to {output_path}")
+        compressed_audio_path = output_path.replace(".mp3", "_compressed.mp3")
+        combined_audio.export(compressed_audio_path, format='mp3', bitrate=BITRATE)
+        logging.info(f"Compressed audio file saved to {compressed_audio_path}")
     except Exception as e:
         logging.error(f"Error synthesizing speech: {e}")
         raise
@@ -122,7 +124,8 @@ def main():
         synthesize_speech(script_text, output_audio_path)
 
         access_token = read_podbean_token(PODBEAN_TOKEN_FILE)
-        upload_response = upload_to_podbean(output_audio_path, access_token)
+        compressed_audio_path = output_audio_path.replace(".mp3", "_compressed.mp3")
+        upload_response = upload_to_podbean(compressed_audio_path, access_token)
 
         logging.info(f"Upload response: {upload_response}")
 
