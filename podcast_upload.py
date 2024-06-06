@@ -1,6 +1,5 @@
 import os
 import datetime
-import markdown2
 import boto3
 import requests
 import logging
@@ -20,7 +19,6 @@ def set_logging_level(level):
 MAX_TEXT_LENGTH = 3000  # AWS Polly maximum text length
 PODBEAN_TOKEN_FILE = './podbean_token.json'
 PODBEAN_UPLOAD_AUTHORIZE_URL = 'https://api.podbean.com/v1/files/uploadAuthorize'
-PODBEAN_UPLOAD_URL = 'https://api.podbean.com/v1/files/upload'
 PODBEAN_PUBLISH_URL = 'https://api.podbean.com/v1/episodes'
 BITRATE = "64k"  # Bitrate for the compressed audio file
 
@@ -34,21 +32,30 @@ def read_file(file_path):
         return file.read()
 
 def clean_markdown(markdown_text):
-    # Remove the date at the top
     cleaned_text = re.sub(r"^date:.*\n", "", markdown_text, flags=re.MULTILINE)
-    # Remove "Read more" links
     cleaned_text = re.sub(r"\[Read more\]\(.*\)", "", cleaned_text)
     return cleaned_text
 
 def parse_markdown(markdown_text):
-    # Extract titles and content using regular expressions
     articles = re.findall(r'## (.*?)\n(.*?)(?=\n## |\Z)', markdown_text, re.DOTALL)
     return [{'title': title.strip(), 'content': content.strip()} for title, content in articles]
+
+def split_text_to_chunks(text, max_length):
+    chunks = []
+    current_chunk = ""
+    for sentence in re.split(r'(?<=[.!?]) +', text):
+        if len(current_chunk) + len(sentence) > max_length:
+            chunks.append(current_chunk.strip())
+            current_chunk = sentence
+        else:
+            current_chunk += " " + sentence
+    chunks.append(current_chunk.strip())
+    return chunks
 
 def create_podcast_script(articles):
     script = "<speak>"
     num_articles = len(articles)
-    
+
     for i, article in enumerate(articles):
         if i == 0:
             script += f"Our first article, titled {article['title']}, {article['content']}<break time='2s'/>"
@@ -56,19 +63,25 @@ def create_podcast_script(articles):
             script += f"Our last article, titled {article['title']}, {article['content']}<break time='2s'/>"
         else:
             script += f"Our next article, titled {article['title']}, {article['content']}<break time='2s'/>"
-    
+
     script += "This has been your daily cybersecurity news. Tune in tomorrow and share with your friends and colleagues.</speak>"
     return script
 
 def synthesize_speech(script, voice_id='Joanna'):
     polly = boto3.client('polly')
-    response = polly.synthesize_speech(
-        Text=script,
-        OutputFormat='mp3',
-        VoiceId=voice_id,
-        TextType='ssml'
-    )
-    return response['AudioStream'].read()
+    audio_streams = []
+
+    chunks = split_text_to_chunks(script, MAX_TEXT_LENGTH)
+    for chunk in chunks:
+        response = polly.synthesize_speech(
+            Text=f"<speak>{chunk}</speak>",
+            OutputFormat='mp3',
+            VoiceId=voice_id,
+            TextType='ssml'
+        )
+        audio_streams.append(response['AudioStream'].read())
+
+    return b''.join(audio_streams)
 
 def save_audio(audio_stream, file_path):
     with open(file_path, 'wb') as file:
@@ -138,11 +151,11 @@ def main():
     
     logger.info("Getting upload authorization from Podbean")
     upload_auth = get_upload_authorization(token, compressed_audio_file_path)
-    logger.info("Upload authorization response status: %s", upload_auth['status'])
+    logger.info("Upload authorization response: %s", upload_auth)
     
     logger.info("Uploading audio file to Podbean: %s", compressed_audio_file_path)
     upload_response = upload_file_to_podbean(upload_auth['presigned_url'], compressed_audio_file_path)
-    logger.info("Podbean upload response status: %s", upload_response['status'])
+    logger.info("Podbean upload response: %s", upload_response)
     
     logger.info("Upload successful")
     
@@ -153,7 +166,7 @@ def main():
     
     logger.info("Publishing episode on Podbean")
     publish_response = publish_episode(token, upload_auth, episode_title, episode_description)
-    logger.info("Episode publish response status: %s", publish_response['status'])
+    logger.info("Episode publish response: %s", publish_response)
     logger.info("Episode published successfully: %s", publish_response)
 
 if __name__ == "__main__":
