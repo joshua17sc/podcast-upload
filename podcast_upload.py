@@ -173,6 +173,7 @@ def publish_episode(token, title, content, media_key):
             'type': 'public',
             'media_key': media_key
         }
+        logger.debug(f"Episode content: {content}")
         response = requests.post(PODBEAN_PUBLISH_URL, data=data)
         logger.info(f"Episode publish response status: {response.status_code}")
         response.raise_for_status()
@@ -189,6 +190,7 @@ def generate_html_description(articles, article_urls):
         if title_search:
             title = title_search.group(1)
             html_description += f"<h2>{title}</h2><p>{article}</p><p><a href='{url}'>Read more</a></p>"
+    logger.debug(f"Generated HTML Description: {html_description}")
     return html_description
 
 def main():
@@ -213,14 +215,13 @@ def main():
 
         episode_title = f"Cybersecurity News for {today_date}"
         episode_content = generate_html_description(articles, article_urls)
+        logger.info(f"Episode content to be published: {episode_content}")
         publish_response = publish_episode(access_token, episode_title, episode_content, upload_auth_response['file_key'])
-
-        logger.info(f"Publish response: {publish_response}")
+        
+        logger.info(f"Episode published successfully: {publish_response}")
 
     except Exception as e:
         logger.error(f"An error occurred: {e}")
 
-if __name__ == "__main__":
-    # Set logging level to INFO for less detailed logs.
-    set_logging_level(logging.INFO)
+if __name__ == '__main__':
     main()
