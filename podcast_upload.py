@@ -164,7 +164,7 @@ def main():
     logger.info("Uploading audio file to Podbean: %s", compressed_audio_file_path)
     upload_response = upload_file_to_podbean(upload_auth['presigned_url'], compressed_audio_file_path)
     logger.info("Podbean upload response: %s", upload_response)
-     
+    
     logger.info("Upload successful")
     
     episode_title = f"Cybersecurity News for {datetime.date.today()}"
