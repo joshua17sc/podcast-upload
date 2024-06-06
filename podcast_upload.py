@@ -73,13 +73,17 @@ def synthesize_speech(script, voice_id='Joanna'):
 
     chunks = split_text_to_chunks(script, MAX_TEXT_LENGTH)
     for chunk in chunks:
-        response = polly.synthesize_speech(
-            Text=f"<speak>{chunk}</speak>",
-            OutputFormat='mp3',
-            VoiceId=voice_id,
-            TextType='ssml'
-        )
-        audio_streams.append(response['AudioStream'].read())
+        try:
+            response = polly.synthesize_speech(
+                Text=f"<speak>{chunk}</speak>",
+                OutputFormat='mp3',
+                VoiceId=voice_id,
+                TextType='ssml'
+            )
+            audio_streams.append(response['AudioStream'].read())
+        except polly.exceptions.InvalidSsmlException as e:
+            logger.error(f"Invalid SSML request: {e}")
+            return None
 
     return b''.join(audio_streams)
 
@@ -141,6 +145,10 @@ def main():
     
     logger.info("Synthesizing speech using AWS Polly")
     audio_stream = synthesize_speech(podcast_script)
+    if audio_stream is None:
+        logger.error("Failed to synthesize speech due to invalid SSML.")
+        return
+    
     save_audio(audio_stream, audio_file_path)
     
     logger.info("Compressing audio file")
