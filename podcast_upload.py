@@ -63,12 +63,11 @@ def create_podcast_script(articles, today_date):
     transitions = ["Our first article for today...", "This next article...", "Our final article for today..."]
     outro = f"This has been your cybersecurity news for {today_date}. Tune in tomorrow and share with your friends and colleagues."
 
-    script = [intro]
+    script = [f"<speak><prosody rate='medium'>{intro}</prosody><break time='2s'/>"]
     for i, article in enumerate(articles):
-        script.append(transitions[min(i, len(transitions)-1)])
-        script.append(article)
-        script.append("<break time='2s'/>")  # Adding pause between articles
-    script.append(outro)
+        script.append(f"<prosody rate='medium'>{transitions[min(i, len(transitions)-1)]}</prosody><break time='1s'/>")
+        script.append(f"<prosody rate='medium'>{article}</prosody><break time='2s'/>")
+    script.append(f"<prosody rate='medium'>{outro}</prosody></speak>")
 
     return "\n".join(script)
 
@@ -95,6 +94,7 @@ def synthesize_speech(script_text, output_path):
             response = polly_client.synthesize_speech(
                 Text=chunk,
                 OutputFormat='mp3',
+                TextType='ssml',
                 VoiceId='Ruth',  # Using Ruth voice for newscasting
                 Engine='neural'
             )
@@ -105,7 +105,7 @@ def synthesize_speech(script_text, output_path):
             os.remove(temp_audio_path)  # Delete temporary file to free up memory
 
         combined_audio = sum(audio_segments)
-        compressed_audio_path = output_path.replace(".mp3", "_compressed.mp3")
+        compressed_audio_path = output_audio_path.replace(".mp3", "_compressed.mp3")
         combined_audio.export(compressed_audio_path, format='mp3', bitrate=BITRATE)
         logger.info(f"Compressed audio file saved to {compressed_audio_path}")
         log_resource_usage()  # Log resource usage after processing
