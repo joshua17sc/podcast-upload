@@ -64,12 +64,12 @@ def create_podcast_script(articles, today_date):
     transitions = ["Our first article for today...", "This next article...", "Our final article for today..."]
     outro = f"This has been your cybersecurity news for {today_date}. Tune in tomorrow and share with your friends and colleagues."
 
-    script = [f"<speak><prosody rate='medium'>{intro}</prosody><break time='2s'/>"]
+    script = [f"<speak><prosody rate='medium'>{html.escape(intro)}</prosody><break time='2s'/>"]
     for i, article in enumerate(articles):
         article_text = html.escape(article)
-        script.append(f"<prosody rate='medium'>{transitions[min(i, len(transitions)-1)]}</prosody><break time='1s'/>")
+        script.append(f"<prosody rate='medium'>{html.escape(transitions[min(i, len(transitions)-1)])}</prosody><break time='1s'/>")
         script.append(f"<prosody rate='medium'>{article_text}</prosody><break time='2s'/>")
-    script.append(f"<prosody rate='medium'>{outro}</prosody></speak>")
+    script.append(f"<prosody rate='medium'>{html.escape(outro)}</prosody></speak>")
 
     full_script = "\n".join(script)
     logger.debug(f"Generated SSML Script: {full_script}")
