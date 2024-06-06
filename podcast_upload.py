@@ -60,12 +60,17 @@ def parse_markdown(content):
 def create_podcast_script(articles, today_date):
     logger.info("Creating podcast script")
     intro = f"This is your daily cybersecurity news for {today_date}."
-    transitions = ["Our first article for today...", "This next article...", "Our final article for today..."]
+    transitions = ["Our first article...", "Our next article...", "Our last article..."]
     outro = f"This has been your cybersecurity news for {today_date}. Tune in tomorrow and share with your friends and colleagues."
 
     script = [intro]
     for i, article in enumerate(articles):
-        script.append(transitions[min(i, len(transitions)-1)])
+        if i == 0:
+            script.append(transitions[0])
+        elif i == len(articles) - 1:
+            script.append(transitions[2])
+        else:
+            script.append(transitions[1])
         script.append(article)
     script.append(outro)
 
@@ -196,7 +201,7 @@ def main():
         upload_to_podbean(upload_auth_response['presigned_url'], compressed_audio_path)
 
         episode_title = f"Cybersecurity News for {today_date}"
-        episode_content = " ".join(articles)
+        episode_content = cleaned_content  # Using the cleaned markdown content
         publish_response = publish_episode(access_token, episode_title, episode_content, upload_auth_response['file_key'])
 
         logger.info(f"Publish response: {publish_response}")
@@ -205,6 +210,6 @@ def main():
         logger.error(f"An error occurred: {e}")
 
 if __name__ == "__main__":
-    # Set logging level to DEBUG for more detailed logs.
-    set_logging_level(logging.DEBUG)
+    # Set logging level to INFO for less detailed logs.
+    set_logging_level(logging.INFO)
     main()
