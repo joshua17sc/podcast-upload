@@ -43,8 +43,6 @@ def clean_markdown(content):
     logger.info("Cleaning markdown content")
     # Remove the first line containing the date
     content = re.sub(r'^---.*?---\n', '', content, flags=re.DOTALL)
-    # Remove "Read more" links
-    content = re.sub(r'\[Read more\]\(.*?\)', '', content)
     return content
 
 def parse_markdown(content):
@@ -183,10 +181,13 @@ def create_html_description(articles):
         header = article.find('h2')
         if header:
             description += f"<h2>{header.text}</h2>"
-        links = article.find_all('a')
-        for link in links:
+        link = article.find('a')
+        if link:
             description += f'<p><a href="{link["href"]}">{link.text}</a></p>'
-        description += f'<p>{article.get_text()}</p>'
+        summary = article.get_text()
+        if link:
+            summary = summary.replace(link.text, '')
+        description += f'<p>{summary}</p>'
     return description
 
 def main():
@@ -217,7 +218,7 @@ def main():
 
     except Exception as e:
         logger.error(f"An error occurred: {e}")
- 
+
 if __name__ == "__main__":
     # Set logging level to DEBUG for more detailed logs.
     set_logging_level(logging.DEBUG)
