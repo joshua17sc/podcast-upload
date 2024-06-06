@@ -66,8 +66,11 @@ def create_podcast_script(articles, today_date):
 
     script = [intro]
     for i, article in enumerate(articles):
-        script.append(transitions[min(i, len(transitions)-1)])
-        script.append(article.get_text())
+        script.append(transitions[min(i, len(transitions) - 1)])
+        article_text = article.get_text()
+        article_lines = article_text.split('\n')
+        filtered_lines = [line for line in article_lines if "Read more" not in line]
+        script.append("\n".join(filtered_lines))
     script.append(outro)
 
     full_script = "\n".join(script)
