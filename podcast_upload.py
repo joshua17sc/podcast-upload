@@ -52,7 +52,9 @@ def parse_markdown(content):
     try:
         html_content = markdown2.markdown(content)
         articles = html_content.split('<h2>')[1:]  # Assuming each article starts with <h2> header
-        return [BeautifulSoup(article, 'html.parser').get_text() for article in articles], html_content
+        article_urls = re.findall(r'\[Read more\]\((.*?)\)', content)  # Extract URLs
+        parsed_articles = [BeautifulSoup(article, 'html.parser').get_text() for article in articles]
+        return parsed_articles, html_content, article_urls
     except Exception as e:
         logger.error(f"Error parsing markdown content: {e}")
         raise
@@ -180,6 +182,15 @@ def publish_episode(token, title, content, media_key):
         logger.error(f"Error publishing episode: {e}")
         raise
 
+def generate_html_description(articles, article_urls):
+    html_description = ""
+    for article, url in zip(articles, article_urls):
+        title_search = re.search(r'\"(.*?)\"', article)
+        if title_search:
+            title = title_search.group(1)
+            html_description += f"<h2>{title}</h2><p>{article}</p><p><a href='{url}'>Read more</a></p>"
+    return html_description
+
 def main():
     try:
         today_date = datetime.date.today().strftime('%Y-%m-%d')
@@ -188,7 +199,7 @@ def main():
 
         markdown_content = read_file(os.path.expanduser(markdown_file_path))
         cleaned_content = clean_markdown(markdown_content)
-        articles, html_content = parse_markdown(cleaned_content)
+        articles, html_content, article_urls = parse_markdown(cleaned_content)
         script_text = create_podcast_script(articles, today_date)
         compressed_audio_path = synthesize_speech(script_text, output_audio_path)
 
@@ -201,7 +212,7 @@ def main():
         upload_to_podbean(upload_auth_response['presigned_url'], compressed_audio_path)
 
         episode_title = f"Cybersecurity News for {today_date}"
-        episode_content = html_content  # Using the HTML content for the episode description
+        episode_content = generate_html_description(articles, article_urls)
         publish_response = publish_episode(access_token, episode_title, episode_content, upload_auth_response['file_key'])
 
         logger.info(f"Publish response: {publish_response}")
