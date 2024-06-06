@@ -182,7 +182,8 @@ def create_html_description(articles):
         link = article.find('a')
         if header and link:
             description += f'<h2><a href="{link["href"]}">{header.text}</a></h2>'
-        summary = article.get_text().replace(link.text, '')
+        summary = article.get_text().replace(header.text, '').strip()
+        summary = summary.replace('Read more', '').strip()  # Remove any remaining 'Read more' text
         description += f'<p>{summary}</p>'
     return description
 
