@@ -50,7 +50,7 @@ def parse_markdown(content):
     try:
         html_content = markdown2.markdown(content)
         articles = html_content.split('<h2>')[1:]  # Assuming each article starts with <h2> header
-        parsed_articles = [BeautifulSoup(article, 'html.parser') for article in articles]
+        parsed_articles = [BeautifulSoup('<h2>' + article, 'html.parser') for article in articles]
         return parsed_articles
     except Exception as e:
         logger.error(f"Error parsing markdown content: {e}")
@@ -182,9 +182,7 @@ def create_html_description(articles):
         link = article.find('a')
         if header and link:
             description += f'<h2><a href="{link["href"]}">{header.text}</a></h2>'
-        summary = article.get_text()
-        if link:
-            summary = summary.replace(link.text, '')
+        summary = article.get_text().replace(link.text, '')
         description += f'<p>{summary}</p>'
     return description
 
