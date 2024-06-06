@@ -12,7 +12,7 @@ import re
 import html
 
 # Setup logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basic_config(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger()
 
 def set_logging_level(level):
@@ -64,12 +64,12 @@ def create_podcast_script(articles, today_date):
     transitions = ["Our first article for today...", "This next article...", "Our final article for today..."]
     outro = f"This has been your cybersecurity news for {today_date}. Tune in tomorrow and share with your friends and colleagues."
 
-    script = [f"<speak><prosody rate='medium'>{html.escape(intro)}</prosody><break time='2s'/>"]
+    script = [f"<speak>{html.escape(intro)}<break time='2s'/>"]
     for i, article in enumerate(articles):
         article_text = html.escape(article)
-        script.append(f"<prosody rate='medium'>{html.escape(transitions[min(i, len(transitions)-1)])}</prosody><break time='1s'/>")
-        script.append(f"<prosody rate='medium'>{article_text}</prosody><break time='2s'/>")
-    script.append(f"<prosody rate='medium'>{html.escape(outro)}</prosody></speak>")
+        script.append(f"{html.escape(transitions[min(i, len(transitions)-1)])}<break time='1s'/>")
+        script.append(f"{article_text}<break time='2s'/>")
+    script.append(f"{html.escape(outro)}</speak>")
 
     full_script = "\n".join(script)
     logger.debug(f"Generated SSML Script: {full_script}")
