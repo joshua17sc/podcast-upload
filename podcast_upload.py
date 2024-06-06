@@ -14,7 +14,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # Constants
 MAX_TEXT_LENGTH = 3000  # AWS Polly maximum text length
 PODBEAN_TOKEN_FILE = './podbean_token.json'
+PODBEAN_UPLOAD_AUTHORIZE_URL = 'https://api.podbean.com/v1/files/uploadAuthorize'
 PODBEAN_UPLOAD_URL = 'https://api.podbean.com/v1/files/upload'
+PODBEAN_PUBLISH_URL = 'https://api.podbean.com/v1/episodes'
 BITRATE = "64k"  # Bitrate for the compressed audio file
 
 def log_resource_usage():
@@ -106,24 +108,56 @@ def read_podbean_token(file_path):
         logging.error(f"Error reading Podbean token: {e}")
         raise
 
-def upload_to_podbean(audio_file_path, access_token):
+def get_upload_authorization(token, filename, filesize, content_type='audio/mpeg'):
+    try:
+        logging.info("Getting upload authorization from Podbean")
+        params = {
+            'access_token': token,
+            'filename': filename,
+            'filesize': filesize,
+            'content_type': content_type
+        }
+        response = requests.get(PODBEAN_UPLOAD_AUTHORIZE_URL, params=params)
+        logging.info(f"Upload authorization response status: {response.status_code}")
+        logging.info(f"Upload authorization response content: {response.text}")
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        logging.error(f"Error getting upload authorization: {e}")
+        raise
+
+def upload_to_podbean(upload_url, audio_file_path):
     logging.info(f"Uploading audio file to Podbean: {audio_file_path}")
     try:
-        file_size = os.path.getsize(audio_file_path)
-        logging.info(f"File size: {file_size / 1024 ** 2:.2f} MB")  # Log file size in MB
-
         with open(audio_file_path, 'rb') as file:
-            files = {'file': (os.path.basename(audio_file_path), file, 'audio/mpeg')}
-            headers = {'Authorization': f'Bearer {access_token}'}
-
-            response = requests.post(PODBEAN_UPLOAD_URL, headers=headers, files=files)
-            logging.info(f"Podbean response status: {response.status_code}")
-            logging.info(f"Podbean response content: {response.text}")
+            response = requests.put(upload_url, data=file)
+            logging.info(f"Podbean upload response status: {response.status_code}")
+            logging.info(f"Podbean upload response content: {response.text}")
             response.raise_for_status()
             logging.info("Upload successful")
-            return response.json()
     except Exception as e:
         logging.error(f"Error uploading to Podbean: {e}")
+        raise
+
+def publish_episode(token, title, content, media_key):
+    try:
+        logging.info("Publishing episode on Podbean")
+        data = {
+            'access_token': token,
+            'title': title,
+            'content': content,
+            'status': 'publish',
+            'type': 'public',
+            'media_key': media_key
+        }
+        response = requests.post(PODBEAN_PUBLISH_URL, data=data)
+        logging.info(f"Episode publish response status: {response.status_code}")
+        logging.info(f"Episode publish response content: {response.text}")
+        response.raise_for_status()
+        logging.info("Episode published successfully")
+        return response.json()
+    except Exception as e:
+        logging.error(f"Error publishing episode: {e}")
         raise
 
 def main():
@@ -138,9 +172,18 @@ def main():
         compressed_audio_path = synthesize_speech(script_text, output_audio_path)
 
         access_token = read_podbean_token(PODBEAN_TOKEN_FILE)
-        upload_response = upload_to_podbean(compressed_audio_path, access_token)
+        file_size = os.path.getsize(compressed_audio_path)
+        filename = os.path.basename(compressed_audio_path)
+        
+        upload_auth_response = get_upload_authorization(access_token, filename, file_size)
 
-        logging.info(f"Upload response: {upload_response}")
+        upload_to_podbean(upload_auth_response['presigned_url'], compressed_audio_path)
+
+        episode_title = f"Cybersecurity News for {today_date}"
+        episode_content = markdown_content
+        publish_response = publish_episode(access_token, episode_title, episode_content, upload_auth_response['file_key'])
+
+        logging.info(f"Publish response: {publish_response}")
 
     except Exception as e:
         logging.error(f"An error occurred: {e}")
