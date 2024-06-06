@@ -52,7 +52,7 @@ def parse_markdown(content):
     try:
         html_content = markdown2.markdown(content)
         articles = html_content.split('<h2>')[1:]  # Assuming each article starts with <h2> header
-        return [BeautifulSoup(article, 'html.parser').get_text() for article in articles]
+        return [BeautifulSoup(article, 'html.parser').get_text() for article in articles], html_content
     except Exception as e:
         logger.error(f"Error parsing markdown content: {e}")
         raise
@@ -188,7 +188,7 @@ def main():
 
         markdown_content = read_file(os.path.expanduser(markdown_file_path))
         cleaned_content = clean_markdown(markdown_content)
-        articles = parse_markdown(cleaned_content)
+        articles, html_content = parse_markdown(cleaned_content)
         script_text = create_podcast_script(articles, today_date)
         compressed_audio_path = synthesize_speech(script_text, output_audio_path)
 
@@ -201,7 +201,7 @@ def main():
         upload_to_podbean(upload_auth_response['presigned_url'], compressed_audio_path)
 
         episode_title = f"Cybersecurity News for {today_date}"
-        episode_content = cleaned_content  # Using the cleaned markdown content
+        episode_content = html_content  # Using the HTML content for the episode description
         publish_response = publish_episode(access_token, episode_title, episode_content, upload_auth_response['file_key'])
 
         logger.info(f"Publish response: {publish_response}")
