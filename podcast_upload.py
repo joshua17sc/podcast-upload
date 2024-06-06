@@ -111,11 +111,14 @@ def upload_to_podbean(audio_file_path, access_token):
     try:
         file_size = os.path.getsize(audio_file_path)
         logging.info(f"File size: {file_size / 1024 ** 2:.2f} MB")  # Log file size in MB
+
         with open(audio_file_path, 'rb') as file:
-            files = {'file': file}
+            files = {'file': (os.path.basename(audio_file_path), file, 'audio/mpeg')}
             headers = {'Authorization': f'Bearer {access_token}'}
+
             response = requests.post(PODBEAN_UPLOAD_URL, headers=headers, files=files)
             logging.info(f"Podbean response status: {response.status_code}")
+            logging.info(f"Podbean response content: {response.text}")
             response.raise_for_status()
             logging.info("Upload successful")
             return response.json()
