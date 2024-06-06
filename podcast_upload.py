@@ -5,6 +5,7 @@ import boto3
 import requests
 import logging
 import json
+import psutil
 from pydub import AudioSegment
 
 # Setup logging
@@ -15,6 +16,11 @@ MAX_TEXT_LENGTH = 3000  # AWS Polly maximum text length
 PODBEAN_TOKEN_FILE = './podbean_token.json'
 PODBEAN_UPLOAD_URL = 'https://api.podbean.com/v1/files/upload'
 BITRATE = "64k"  # Bitrate for the compressed audio file
+
+def log_resource_usage():
+    process = psutil.Process(os.getpid())
+    logging.info(f"Memory usage: {process.memory_info().rss / 1024 ** 2:.2f} MB")
+    logging.info(f"CPU usage: {process.cpu_percent(interval=1.0)}%")
 
 def read_file(file_path):
     logging.info(f"Reading file from {file_path}")
@@ -79,11 +85,13 @@ def synthesize_speech(script_text, output_path):
             with open(temp_audio_path, 'wb') as file:
                 file.write(response['AudioStream'].read())
             audio_segments.append(AudioSegment.from_mp3(temp_audio_path))
+            os.remove(temp_audio_path)  # Delete temporary file to free up memory
 
         combined_audio = sum(audio_segments)
         compressed_audio_path = output_path.replace(".mp3", "_compressed.mp3")
         combined_audio.export(compressed_audio_path, format='mp3', bitrate=BITRATE)
         logging.info(f"Compressed audio file saved to {compressed_audio_path}")
+        log_resource_usage()  # Log resource usage after processing
         return compressed_audio_path
     except Exception as e:
         logging.error(f"Error synthesizing speech: {e}")
@@ -102,7 +110,7 @@ def upload_to_podbean(audio_file_path, access_token):
     logging.info(f"Uploading audio file to Podbean: {audio_file_path}")
     try:
         file_size = os.path.getsize(audio_file_path)
-        logging.info(f"File size: {file_size} bytes")
+        logging.info(f"File size: {file_size / 1024 ** 2:.2f} MB")  # Log file size in MB
         with open(audio_file_path, 'rb') as file:
             files = {'file': file}
             headers = {'Authorization': f'Bearer {access_token}'}
