@@ -217,7 +217,7 @@ def main():
 
     except Exception as e:
         logger.error(f"An error occurred: {e}")
-
+ 
 if __name__ == "__main__":
     # Set logging level to DEBUG for more detailed logs.
     set_logging_level(logging.DEBUG)
