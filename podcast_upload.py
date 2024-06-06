@@ -21,7 +21,7 @@ def set_logging_level(level):
 
 # Constants
 MAX_TEXT_LENGTH = 3000  # AWS Polly maximum text length
-PODBEAN_TOKEN_FILE = './podbean_token.json'
+PODBEAN_TOKEN_FILE = '/root/podcast_upload/podbean_token.json'
 PODBEAN_UPLOAD_AUTHORIZE_URL = 'https://api.podbean.com/v1/files/uploadAuthorize'
 PODBEAN_UPLOAD_URL = 'https://api.podbean.com/v1/files/upload'
 PODBEAN_PUBLISH_URL = 'https://api.podbean.com/v1/episodes'
